@@ -8,7 +8,12 @@ module.exports = {
     extend: {
       colors: {
         brand: "#f35640",
-      }
+      },
+      backgroundImage: {
+        'background': "url('/src/assets/images/background.png')",
+        'background2': "url('/src/assets/images/backgroundlight.png')",
+
+      },
     },
   },
   plugins: [],
