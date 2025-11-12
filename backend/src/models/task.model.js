@@ -36,13 +36,14 @@ const taskSchema = new mongoose.Schema(
     startDate: { 
       type: Date 
     },
-    dueDate: { 
-      type: Date, 
-      required: true 
+    dueDate: {
+    type: Date,
+    required: false, 
     },
     estimateHours: { 
       type: Number, 
-      default: 0 
+      default: 0,
+      min : 0, 
     },
     spentHours: { 
       type: Number, 

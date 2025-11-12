@@ -1,21 +1,22 @@
 import mongoose from "mongoose";
 import dotenv from "dotenv";
-import Task from "../models/task.model.js";
-import Project from "../models/project.model.js";
-import User from "../models/user.model.js";
+import Task from "../src/models/task.model.js";
+import Project from "../src/models/project.model.js";
+import User from "../src/models/user.model.js";
 
 dotenv.config();
 
 const seedTasks = async () => {
   try {
     await mongoose.connect(process.env.MONGO_URI);
-    console.log("Connected to MongoDB for seeding");
+    console.log("Connected to MongoDB for seeding tasks");
 
+    // Lấy projects và users từ database
     const projects = await Project.find({});
     const users = await User.find({});
 
     if (projects.length === 0 || users.length === 0) {
-      console.log("Please seed users and projects first!");
+      console.log(" Please seed users and projects first!");
       process.exit(1);
     }
 
@@ -23,9 +24,10 @@ const seedTasks = async () => {
     const managerUsers = users.filter(u => u.role === "Manager");
     const memberUsers = users.filter(u => u.role === "Member");
 
+    // Tạo mảng tasks
     const mockTasks = [];
 
-    // PROJECT 1 tasks 
+    // PROJECT 1 tasks (nếu có ít nhất 1 project)
     if (projects[0]) {
       mockTasks.push(
         {
@@ -138,14 +140,14 @@ const seedTasks = async () => {
       }
     }
 
-    console.log("Seed tasks completed!");
-    console.log(`Created ${createdCount} new tasks`);
-    console.log(`For ${projects.length} projects`);
-    console.log(`Using ${users.length} users`);
+    console.log(" Seed tasks completed!");
+    console.log(` Created ${createdCount} new tasks`);
+    console.log(` For ${projects.length} projects`);
+    console.log(` Using ${users.length} users`);
     
     process.exit(0);
   } catch (err) {
-    console.error("Error while seeding tasks:", err);
+    console.error(" Error while seeding tasks:", err);
     process.exit(1);
   }
 };
