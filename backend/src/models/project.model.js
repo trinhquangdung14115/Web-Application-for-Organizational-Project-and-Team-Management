@@ -1,45 +1,23 @@
 import mongoose from "mongoose";
-// t nhét base tạo script
-const projectSchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
-    description: {
-      type: String,
-    },
-    startDate: {
-      type: Date,
-    },
-    endDate: {
-      type: Date,
-    },
-    status: {
-      type: String,
-      enum: ["ACTIVE", "ARCHIVED", "COMPLETED"], // Các trạng thái dự án
-      default: "ACTIVE",
-    },
-    createdBy: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User", // Link tới bảng User
-      required: true,
-    },
-    managerId: {
-       type: mongoose.Schema.Types.ObjectId,
-       ref: "User",
-    },
-    members: [
-      {
-        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-        role: { type: String, enum: ["Manager", "Member"], default: "Member" }
-      }
-    ]
-  },
-  { timestamps: true } // Tự động tạo createdAt, updatedAt
+
+const memberSchema = new mongoose.Schema(
+	{
+		user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+		role: { type: String, enum: ["Admin", "Manager", "Member"], default: "Member" },
+	},
+	{ _id: false }
 );
 
-const Project = mongoose.model("Project", projectSchema);
+const projectSchema = new mongoose.Schema(
+	{
+		name: { type: String, required: true, trim: true },
+		description: { type: String, default: "" },
+		createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+		members: { type: [memberSchema], default: [] },
+		meta: { type: Object, default: {} },
+		deletedAt: { type: Date, default: null },
+	},
+	{ timestamps: true }
+);
 
-export default Project;
+export default mongoose.model("Project", projectSchema);
