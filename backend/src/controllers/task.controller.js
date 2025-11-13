@@ -33,6 +33,33 @@ export const getTasksByProject = async (req, res) => {
 };
 
 /**
+ * @desc    Lọc task theo project, assignee hoặc status
+ * @route   GET /tasks?project=...&assignee=...&status=...
+ * @access  Private (Admin/Manager/Member)
+ */
+export const getFilteredTasks = async (req, res) => {
+  try {
+    const { project, assignee, status } = req.query;
+    const filter = { deletedAt: null };
+    if (project) filter.projectId = project;
+    if (assignee) filter.assigneeId = assignee;
+    if (status) filter.status = status;
+
+    const tasks = await Task.find(filter)
+      .populate("assigneeId", "name email role")
+      .populate("projectId", "name");
+
+    res.status(200).json({
+      success: true,
+      count: tasks.length,
+      data: tasks,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+/**
  * @desc    Tạo task mới trong project
  * @route   POST /projects/:id/tasks
  * @access  Private (Admin/Manager)
@@ -54,7 +81,6 @@ export const createTask = async (req, res) => {
       parentId,
     } = req.body;
 
-    // Validate bắt buộc
     if (!title || !dueDate) {
       return res.status(400).json({
         success: false,
@@ -62,7 +88,6 @@ export const createTask = async (req, res) => {
       });
     }
 
-    // Check project tồn tại
     const projectExists = await Project.findById(projectId);
     if (!projectExists) {
       return res.status(404).json({
@@ -71,7 +96,6 @@ export const createTask = async (req, res) => {
       });
     }
 
-    // Ép kiểu ObjectId cho các field liên kết
     const convertedProjectId = new mongoose.Types.ObjectId(projectId);
     const convertedAssigneeId = assigneeId
       ? new mongoose.Types.ObjectId(assigneeId)
@@ -108,9 +132,9 @@ export const createTask = async (req, res) => {
 };
 
 /**
- * @desc    Cập nhật thông tin task
+ * @desc    Cập nhật thông tin task (Admin/Manager/Member)
  * @route   PUT /tasks/:id
- * @access  Private (Admin/Manager/Member)
+ * @access  Private
  */
 export const updateTask = async (req, res) => {
   try {
@@ -126,7 +150,7 @@ export const updateTask = async (req, res) => {
       });
     }
 
-    // Nếu user là Member → chỉ được đổi status của task chính mình
+    // Member chỉ được update task của chính mình
     if (userRole === "Member") {
       if (String(task.assigneeId) !== String(userId)) {
         return res.status(403).json({
@@ -135,22 +159,17 @@ export const updateTask = async (req, res) => {
         });
       }
 
-      // Chỉ cho phép đổi status (không được đổi title, projectId,...)
-      if (
-        Object.keys(req.body).some(
-          (key) => key !== "status" && key !== "updatedAt"
-        )
-      ) {
+      // Không cho Member đổi ngoài status
+      const allowedKeys = ["status"];
+      const invalid = Object.keys(req.body).some(
+        (key) => !allowedKeys.includes(key)
+      );
+      if (invalid) {
         return res.status(403).json({
           success: false,
           message: "Members can only update task status.",
         });
       }
-    }
-
-    // ép kiểu nếu có assigneeId mới
-    if (req.body.assigneeId) {
-      req.body.assigneeId = new mongoose.Types.ObjectId(req.body.assigneeId);
     }
 
     const updatedTask = await Task.findByIdAndUpdate(taskId, req.body, {
@@ -168,16 +187,51 @@ export const updateTask = async (req, res) => {
 };
 
 /**
- * @desc    Soft delete task (đánh dấu xóa)
+ * @desc    Cập nhật trạng thái task (PATCH)
+ * @route   PATCH /tasks/:id
+ * @access  Private
+ */
+export const updateTaskStatus = async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    const { status } = req.body;
+    const userRole = req.user?.role;
+    const userId = req.user?._id;
+
+    const task = await Task.findById(taskId);
+    if (!task) return res.status(404).json({ success: false, message: "Task not found" });
+
+    // Member chỉ được đổi status task chính mình
+    if (userRole === "Member" && String(task.assigneeId) !== String(userId)) {
+      return res.status(403).json({
+        success: false,
+        message: "Members can only update their own task status.",
+      });
+    }
+
+    task.status = status || task.status;
+    await task.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Task status updated successfully",
+      data: task,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Soft delete task (Admin/Manager)
  * @route   DELETE /tasks/:id
- * @access  Private (Admin/Manager)
+ * @access  Private
  */
 export const deleteTask = async (req, res) => {
   try {
     const taskId = req.params.id;
     const userRole = req.user?.role;
 
-    // Chỉ Admin/Manager được xóa
     if (!["Admin", "Manager"].includes(userRole)) {
       return res.status(403).json({
         success: false,
