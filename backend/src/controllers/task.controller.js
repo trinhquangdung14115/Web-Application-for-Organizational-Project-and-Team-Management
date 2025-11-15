@@ -11,7 +11,6 @@ export const getTasksByProject = async (req, res) => {
   try {
     const projectId = req.params.id;
 
-    // Kiểm tra project tồn tại
     const projectExists = await Project.findById(projectId);
     if (!projectExists) {
       return res.status(404).json({
@@ -20,7 +19,15 @@ export const getTasksByProject = async (req, res) => {
       });
     }
 
-    const tasks = await Task.find({ projectId, deletedAt: null });
+    const tasks = await Task.find({ projectId, deletedAt: null })
+      .populate({
+        path: "assigneeId",
+        select: "name email role",
+      })
+      .populate({
+        path: "projectId",
+        select: "name",
+      });
 
     res.status(200).json({
       success: true,
