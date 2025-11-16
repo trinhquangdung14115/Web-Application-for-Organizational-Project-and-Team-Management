@@ -1,5 +1,4 @@
-// (giữ nguyên import cũ, chỉ chỉnh React để dùng useState)
-import React, { useState } from 'react';
+import React from 'react';
 import { 
   ClipboardDocumentListIcon, 
   ClockIcon, 
@@ -11,43 +10,13 @@ import {
   ExclamationTriangleIcon, 
 } from '@heroicons/react/24/outline'; 
 
-import { 
-    ClipboardDocumentListIcon as TotalSolid, 
-    ClockIcon as ClockSolid,
-    ArrowPathIcon as ProgressSolid, 
-    CheckCircleIcon as DoneSolid,
-    ExclamationTriangleIcon as WarningSolid, 
-} from '@heroicons/react/24/solid';
-
 // ===== Kanban drag & drop =====
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 // ===== end =====
 
-
-// --- Task Summary Card Component ---
-const TaskSummaryCard = ({ icon, number, label, iconColor, bgColor, textColor }) => {
+import { useOutletContext } from 'react-router-dom';
+import TaskSummary from '../components/TaskSummary';
   
-  // Áp dụng iconColorClass vào icon
-  const coloredIcon = React.cloneElement(icon, { className: `w-5 h-5 ${iconColor}` });
-  
-  return (
-    <div className="flex items-center space-x-3 p-4 bg-white rounded-xl flex-1 border border-gray-100 transition duration-150 hover:shadow-md cursor-pointer"> 
-      {/* Icon Circle */}
-      <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bgColor} ${iconColor}`}>
-          {coloredIcon}
-      </div>
-      
-      {/* Text Content */}
-      <div>
-          <div className={`text-xl font-semibold ${textColor}`}>{number}</div>
-          <div className="text-sm text-gray-500 flex items-center">
-              {label}
-          </div>
-      </div>
-    </div>
-  );
-};
-
 // ======= Kanban Card (UI giống ảnh mẫu) =======
 const PriorityBadge = ({ level }) => {
   const map = {
@@ -108,14 +77,7 @@ const KanbanCard = ({ task }) => {
 
 // --- MyTasks Component ---
 const MyTasks = () => {
-
-  const taskDataFixed = [
-    { number: 14, label: 'Total', icon: <TotalSolid />, iconColor: "text-gray-500", bgColor: "bg-gray-100", textColor: "text-gray-800" },
-    { number: 6, label: 'Todo', icon: <ClockSolid />, iconColor: "text-gray-500", bgColor: "bg-gray-100", textColor: "text-gray-600" },
-    { number: 5, label: 'In Progress', icon: <ProgressSolid />, iconColor: "text-blue-500", bgColor: "bg-blue-100", textColor: "text-blue-600" },
-    { number: 3, label: 'Done', icon: <DoneSolid />, iconColor: "text-green-500", bgColor: "bg-green-100", textColor: "text-green-600" },
-    { number: 1, label: '1 day left', icon: <WarningSolid />, iconColor: "text-orange-500", bgColor: "bg-orange-100", textColor: "text-orange-600" },
-  ];
+  const { tasks, setTasks, dynamicTasksSummary } = useOutletContext();
 
   const filterOptions = [
     { label: 'All statuses', active: true },
@@ -123,35 +85,6 @@ const MyTasks = () => {
     { label: 'All projects', active: false },
     { label: 'All', active: false },
   ];
-  
-  const statusCounts = [
-    { label: 'Backlog', count: 8 },
-    { label: 'Todo', count: 6 },
-    { label: 'In Progress', count: 4 },
-    { label: 'Done', count: 12 },
-  ];
-
-  // ===== Kanban data & handlers (local state) =====
-  const [tasks, setTasks] = useState([
-    // Backlog
-    { id: 't1', title: 'Design new landing page wireframes for mobile responsive layout', status: 'Backlog', priority: 'High', due: 'Dec 15', project: 'Website Redesign', assignee: 'SC' },
-    { id: 't2', title: 'Research competitor pricing models', status: 'Backlog', priority: 'Medium', due: 'Dec 18', project: 'Marketing Campaign', assignee: 'MJ' },
-    { id: 't3', title: 'Set up analytics tracking', status: 'Backlog', priority: 'Low', due: 'Dec 20', project: 'Website Redesign', assignee: 'AR' },
-
-    // Todo
-    { id: 't4', title: 'Implement user authentication flow', status: 'Todo', priority: 'High', due: 'Dec 14', project: 'Mobile App', assignee: 'DK' },
-    { id: 't5', title: 'Write comprehensive API documentation', status: 'Todo', priority: 'Medium', due: 'Dec 16', project: 'API Integration', assignee: 'LW', dueSoon: true },
-    { id: 't6', title: 'Design mobile app icons', status: 'Todo', priority: 'Low', due: 'Dec 19', project: 'Mobile App', assignee: 'SC' },
-
-    // In Progress
-    { id: 't7', title: 'Build responsive navigation component', status: 'In Progress', priority: 'High', due: 'Dec 13', project: 'Website Redesign', assignee: 'AR' },
-    { id: 't8', title: 'Conduct user interviews', status: 'In Progress', priority: 'Medium', due: 'Dec 17', project: 'User Research', assignee: 'ED' },
-
-    // Done
-    { id: 't9',  title: 'Set up project repository', status: 'Done', priority: 'Medium', due: 'Dec 8',  project: 'API Integration', assignee: 'AR' },
-    { id: 't10', title: 'Create brand guidelines', status: 'Done', priority: 'Low',    due: 'Dec 10', project: 'Marketing Campaign', assignee: 'MJ' },
-    { id: 't11', title: 'Design system color tokens', status: 'Done', priority: 'Medium', due: 'Dec 11', project: 'Website Redesign', assignee: 'SC' },
-  ]);
 
   const columns = [
     { id: 'Backlog', label: 'Backlog' },
@@ -186,6 +119,17 @@ const MyTasks = () => {
   };
   // ===== end Kanban =====
 
+// ===== Sort tasks by priority (High -> Medium -> Low) =====
+  const PRIORITY_ORDER = { High: 0, Medium: 1, Low: 2 };
+
+  const sortTasks = (a, b) => {
+    const pa = PRIORITY_ORDER[a.priority] ?? 99;
+    const pb = PRIORITY_ORDER[b.priority] ?? 99;
+    if (pa !== pb) return pa - pb;               // High trước Medium trước Low
+    return (a.due || '').localeCompare(b.due || ''); // tie-break theo ngày (tuỳ chọn)
+  };
+  // ===== end sort =====
+
   return (
     <div className="flex-1 p-8 bg-gray-50 min-h-screen font-sans">
 
@@ -208,19 +152,15 @@ const MyTasks = () => {
       <div className="border-t border-gray-200 mb-8"></div>
 
       {/* Task Summary Section (Cards) */}
-      <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-lg mb-8">
-        <div className="flex flex-wrap md:flex-nowrap justify-between gap-4">
-          {taskDataFixed.map((task, index) => (
-            <TaskSummaryCard key={index} {...task} />
-          ))}
-        </div>
-      </div>
+      <TaskSummary summaryData={dynamicTasksSummary} />
 
       {/* =================== KANBAN (giống ảnh mẫu) =================== */}
       <DragDropContext onDragEnd={handleDragEnd}>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {columns.map((col) => {
-            const list = tasks.filter(t => t.status === col.id);
+            const list = tasks
+              .filter(t => t.status === col.id)
+              .sort(sortTasks);
             return (
               <div key={col.id} className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
                 {/* Header cột */}

@@ -9,8 +9,13 @@ import {
     ClipboardDocumentListIcon, 
     CheckCircleIcon, 
     UserGroupIcon,
+    ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline'; 
 import { CheckCircleIcon as SolidCheckCircleIcon } from '@heroicons/react/24/solid';
+import { EmptyState } from '../components/EmptyState';
+import { LoaderOverlay } from '../components/LoaderOverlay';
+import { ErrorState } from '../components/ErrorState';
+import { mockNotifications } from '../mocks/notifications';
 
 const PRIMARY_COLOR = '#f35640'; 
 
@@ -96,18 +101,30 @@ const NotificationItem = ({ type, project, task, sender, time, unread = true, av
 
 // ---Notification List Panel---
 const NotificationList = () => {
-    // Dữ liệu giả lập (mock data)
-    const initialNotifications = [
-        { id: 1, type: 'assigned', project: 'Website Redesign', task: 'Design Homepage', sender: 'Sarah Chen', time: '2h ago', unread: true, avatarUrl: null },
-        { id: 2, type: 'mention', project: 'API Integration', task: 'N/A', sender: 'Michael Brown', time: '4h ago', unread: true, avatarUrl: null },
-        { id: 3, type: 'due_soon', project: 'N/A', task: 'API Documentation', sender: 'System', time: '5h ago', unread: true, avatarUrl: null },
-        { id: 4, type: 'completed', project: 'Backend Development', task: 'Database Migration', sender: 'Emily Zhang', time: 'Yesterday', unread: false, avatarUrl: null },
-        { id: 5, type: 'comment', project: 'N/A', task: 'User Authentication', sender: 'James Wilson', time: 'Yesterday', unread: false, avatarUrl: null },
-        { id: 6, type: 'assigned', project: 'Mobile Development', task: 'Mobile App Testing', sender: 'Maria Garcia', time: '2 days ago', unread: false, avatarUrl: null },
-    ];
 
     const [filter, setFilter] = useState('All'); // 'All' | 'Unread'
-    const [notifications, setNotifications] = useState(initialNotifications);
+    const [isLoading, setIsLoading] = useState(true); // <-- Bắt đầu bằng true
+    const [isError, setIsError] = useState(false);
+    const [notifications, setNotifications] = useState([]);
+    React.useEffect(() => {
+        setIsLoading(true);
+        setIsError(false);
+        const timer = setTimeout(() => {
+            // Bản dữ liệu thành công
+            setNotifications(mockNotifications); 
+            setIsLoading(false);
+
+            // Bản lỗi
+            //setIsError(true);
+            //setIsLoading(false);
+
+            // Bản không có thông báo
+            //setNotifications([]); 
+            //setIsLoading(false);
+        }, 1500);
+        return () => clearTimeout(timer);
+    }, []);    
+    
     const handleMarkAllRead = () => {
         console.log("Marking all notifications as read...");
         const allRead = notifications.map(n => ({ ...n, unread: false }));
@@ -144,7 +161,54 @@ const NotificationList = () => {
             </button>
         );
     }
+    const renderContent = () => {
+        // Trạng thái Loading
+        if (isLoading) {
+            // LoaderOverlay sẽ che phủ toàn bộ khu vực của nó
+            return <LoaderOverlay />;
+        }
 
+        // Trạng thái Error
+        if (isError) {
+            return (
+                <ErrorState 
+                    icon={<ExclamationTriangleIcon className="w-12 h-12 text-red-400" />}
+                    title="Could not load notifications"
+                    message="An error occurred while fetching data. Please try again later."
+                />
+            );
+        }
+
+        // Trạng thái Rỗng (Không có thông báo nào)
+        if (filteredNotifications.length === 0) {
+            // Phân biệt lý do rỗng (do filter hay do không có data)
+            const emptyTitle = (notifications.length === 0) 
+                ? "No notifications yet" 
+                : "You are all caught up!";
+            
+            const emptyMessage = (notifications.length === 0)
+                ? "New notifications will appear here."
+                : (filter === 'Unread' ? 'No unread notifications.' : 'No new notifications.');
+
+            return (
+                <EmptyState 
+                    icon={<CheckIcon className="w-12 h-12 text-green-400" />}
+                    title={emptyTitle}
+                    message={emptyMessage}
+                />
+            );
+        }
+
+        // 4. Trạng thái có dữ liệu
+        return (
+            filteredNotifications.map(n => (
+                <NotificationItem 
+                    key={n.id}
+                    {...n}
+                />
+            ))
+        );
+    }
 
     return (
         <div className="bg-white rounded-xl shadow-lg border border-gray-100 flex flex-col min-h-[70vh]">
@@ -157,27 +221,15 @@ const NotificationList = () => {
                 <button 
                     className="text-sm font-medium text-gray-500 hover:text-red-600 transition"
                     onClick={handleMarkAllRead} 
+                    disabled={isLoading || isError} // Vô hiệu hóa nút khi đang tải/lỗi
                 >
                     Mark all as read
                 </button>
             </div>
 
-            {/* List */}
+            {/* List (Nội dung động) */}
             <div className="flex-1 overflow-y-auto">
-                {filteredNotifications.length > 0 ? (
-                    filteredNotifications.map(n => (
-                        <NotificationItem 
-                            key={n.id}
-                            {...n}
-                        />
-                    ))
-                ) : (
-                    <div className="p-10 text-center text-gray-500">
-                        <CheckIcon className="w-12 h-12 mx-auto mb-4 text-green-400"/>
-                        <p className="text-lg">You are all caught up!</p>
-                        <p className="text-sm">{filter === 'Unread' ? 'No unread notifications.' : 'No new notifications.'}</p>
-                    </div>
-                )}
+                {renderContent()}
             </div>
         </div>
     );

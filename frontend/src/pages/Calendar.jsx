@@ -7,6 +7,7 @@ import {
     ArrowPathIcon,
     CheckIcon,
     ClipboardDocumentListIcon,
+    ExclamationTriangleIcon,
 } from '@heroicons/react/24/outline'; 
 
 import { 
@@ -15,49 +16,17 @@ import {
     ClipboardDocumentListIcon as TotalSolid, 
     ClockIcon as ClockSolid, 
 } from '@heroicons/react/24/solid';
+import { LoaderOverlay } from '../components/LoaderOverlay';
+import { ErrorState } from '../components/ErrorState';
+import { mockEventDays, mockCheckedInDays } from '../mocks/events';
+import { useOutletContext } from 'react-router-dom';
+import TaskSummary from '../components/TaskSummary';
+import { CalendarDayCell } from '../components/CalendarDayCell';
 
 const PRIMARY_COLOR = '#f35640'; 
 
-// ---Task Summary Card Component---
-const TaskSummary = () => {
-    const tasks = [
-        { count: 8, title: "Total", icon: TotalSolid, iconColor: "text-gray-500", bgColor: "bg-gray-100", textColor: "text-gray-800" },
-        { count: 0, title: "Todo", icon: ClockSolid, iconColor: "text-gray-500", bgColor: "bg-gray-100", textColor: "text-gray-600" },
-        { count: 1, title: "In Progress", icon: ProgressSolid, iconColor: "text-blue-500", bgColor: "bg-blue-100", textColor: "text-blue-600" },
-        { count: 0, title: "Done", icon: DoneSolid, iconColor: "text-green-500", bgColor: "bg-green-100", textColor: "text-green-600" },
-    ];
-
-    const Card = ({ count, title, icon: Icon, iconColor, bgColor, textColor }) => (
-        <div className="flex items-center space-x-3 p-4 bg-white rounded-xl flex-1 border border-gray-100 transition duration-150 hover:shadow-md">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${bgColor} ${iconColor}`}>
-                <Icon className="w-5 h-5" />
-            </div>
-            <div>
-                <div className={`text-xl font-semibold ${textColor}`}>{count}</div>
-                <div className="text-sm text-gray-500">{title}</div>
-            </div>
-        </div>
-    );
-
-    return (
-        <div className="flex flex-wrap md:flex-nowrap space-y-2 md:space-y-0 md:space-x-4 mb-6 p-2 bg-white rounded-xl shadow-lg border border-gray-100">
-            {tasks.map((task, index) => (
-                <Card 
-                    key={index} 
-                    count={task.count} 
-                    title={task.title} 
-                    icon={task.icon}
-                    iconColor={task.iconColor}
-                    bgColor={task.bgColor}
-                    textColor={task.textColor}
-                />
-            ))}
-        </div>
-    );
-};
-
 // ---Calendar Panel---
-const CalendarPanel = ({ checkedInDaysList, isLoading }) => {
+const CalendarPanel = ({ isLoading }) => {
     const daysOfWeek = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
     // Giả lập lịch tháng 5/2025 
     const dates = [
@@ -69,49 +38,7 @@ const CalendarPanel = ({ checkedInDaysList, isLoading }) => {
     ];
     
     // Dữ liệu tĩnh: Ngày có sự kiện và ngày đã check-in
-    const defaultEventDays = [17, 23, 24, 25, 31];
-    const mockCheckedInDays = [5, 12];
-    const eventsDays = new Set([...defaultEventDays, ...mockCheckedInDays]);
-
-    const DayCell = ({ date }) => {
-        if (!date) return <div className="p-1"></div>;
-        
-        const isSelected = date === 16; 
-        const isCheckedIn = mockCheckedInDays.includes(date);
-        const hasEvent = eventsDays.has(date);
-
-        let dayClasses = `p-1 flex flex-col items-center justify-center text-sm relative transition-all duration-150 rounded-full w-8 h-8 self-center mx-auto cursor-pointer`;
-
-        if (isSelected) {
-            // Ngày đang chọn
-            dayClasses += ` text-white font-semibold`;
-            dayClasses += ` rounded-lg shadow-lg`; 
-            dayClasses = dayClasses.replace("bg-red-600", ""); 
-        } else {
-            // Ngày bình thường
-            dayClasses += ` text-gray-800 hover:bg-gray-100`;
-            if (isCheckedIn) {
-                dayClasses += ` text-blue-600 font-medium`; // Ngày đã check-in màu xanh
-            }
-        }
-        
-        return (
-            <div className="p-0.5">
-                <div 
-                    className={dayClasses}
-                    style={isSelected ? { backgroundColor: PRIMARY_COLOR } : {}}
-                >
-                    <div className={isSelected ? 'relative top-[1px]' : ''}>
-                        {date}
-                    </div>
-                    {/* Dấu chấm sự kiện */}
-                    {hasEvent && !isCheckedIn && ( // Chỉ hiển thị dấu chấm nếu có sự kiện và chưa check-in
-                        <div className="w-1 h-1 bg-gray-400 rounded-full mt-1 absolute bottom-1"></div>
-                    )}
-                </div>
-            </div>
-        );
-    };
+    const eventsDays = new Set([...mockEventDays, ...mockCheckedInDays]);
 
     return (
         <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col flex-grow">
@@ -135,9 +62,22 @@ const CalendarPanel = ({ checkedInDaysList, isLoading }) => {
                         {day}
                     </div>
                 ))}
-                {dates.map((date, index) => (
-                    <DayCell key={index} date={date} />
-                ))}
+                {dates.map((date, index) => {
+                    const isSelected = date === 16; 
+                    const isCheckedIn = mockCheckedInDays.includes(date);
+                    const hasEvent = eventsDays.has(date);
+                    return (
+                        // 1. Đổi tên component thành "CalendarDayCell"
+                        <CalendarDayCell 
+                            key={index}
+                            date={date}
+                            // 2. Truyền props
+                            isSelected={isSelected}
+                            isCheckedIn={isCheckedIn}
+                            hasEvent={hasEvent}
+                        />
+                    );
+                })} 
             </div>
         </div>
     );
@@ -207,15 +147,56 @@ const EventPanel = () => {
 
 // ---Calendar Page Component---
 const Calendar = () => {
+    const { dynamicTasksSummary } = useOutletContext();
+    const [isLoading, setIsLoading] = useState(true);
+    const [isError, setIsError] = useState(false);
+    React.useEffect(() => {
+        setIsLoading(true);
+        setIsError(false);
+        const timer = setTimeout(() => {
+            // Bản thành công 
+            setIsLoading(false);
+
+            // Bản lỗi 
+            // setIsError(true);
+            // setIsLoading(false);
+
+        }, 1500); 
+        return () => clearTimeout(timer);
+    }, []);
+
+    // 1. Trạng thái Loading
+    if (isLoading) {
+        return (
+            <div className="flex-1 p-8 bg-gray-50 min-h-screen font-sans flex items-center justify-center">
+                <LoaderOverlay />
+            </div>
+        );
+    }
+    
+    // 2. Trạng thái Error
+    if (isError) {
+        return (
+            <div className="flex-1 p-8 bg-gray-50 min-h-screen font-sans flex items-center justify-center">
+                <ErrorState 
+                    icon={<ExclamationTriangleIcon className="w-12 h-12 text-red-400" />}
+                    title="Could not load calendar"
+                    message="An error occurred while fetching data. Please try again later."
+                />
+            </div>
+        );
+    }
+
+    // 3. Trạng thái thành công (hiển thị nội dung)
     return (
         <div className="flex-1 p-8 bg-gray-50 min-h-screen font-sans">
-            <TaskSummary />
+            <TaskSummary summaryData={dynamicTasksSummary} />
             {/* Main Content: Calendar and Events  */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch min-h-[550px]">
                 {/* Cột Trái: Calendar Panel */}
                 <div className="md:col-span-1 flex flex-col flex-grow"> 
                     <CalendarPanel 
-                        checkedInDaysList={[5, 12]}
+                        checkedInDaysList={mockCheckedInDays} 
                         isLoading={false} 
                     />
                 </div>
