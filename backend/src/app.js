@@ -3,7 +3,7 @@ import express from "express";
 import cors from "cors";
 import morgan from "morgan";
 import dotenv from "dotenv";
-import router from "./routes.js";   // import default OK
+import router from "./routes.js";
 import taskRoutes from "./routes/task.routes.js"; 
 
 import swaggerUi from "swagger-ui-express";
@@ -12,14 +12,41 @@ import path from "path";
 import { fileURLToPath } from "url";
 
 dotenv.config();
-
 const app = express();
-app.use(cors());
+
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+
 app.use(express.json());
 app.use(morgan("dev"));
 
 app.use("/api", router);
 app.use("/api", taskRoutes);
+
+// Hàm log routes
+function printRoutes(stack, parentPath = '') {
+  stack.forEach((middleware) => {
+    if (middleware.route) {
+      const methods = Object.keys(middleware.route.methods).join(', ').toUpperCase();
+      console.log(`Route: ${methods} ${parentPath}${middleware.route.path}`);
+    } else if (middleware.name === 'router') {
+      const routerPath = middleware.regexp.source
+        .replace('\\/?', '')
+        .replace('(?=\\/|$)', '')
+        .replace(/\\\//g, '/');
+      
+      printRoutes(middleware.handle.stack, parentPath + routerPath);
+    }
+  });
+}
+
+console.log('\n Registered Routes:');
+printRoutes(app._router.stack, '');
+console.log('');
 
 // Swagger
 const __filename = fileURLToPath(import.meta.url);

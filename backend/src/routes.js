@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { signup, login, me, promoteRole } from "./controllers/auth.controller.js";
+import { me, promoteRole, signup, login, handleGoogleLogin } from "./controllers/auth.controller.js";
 import { verifyToken, checkRole } from "./middlewares/auth.js";
 import { ROLES } from "./models/user.model.js";
 import {
@@ -15,10 +15,12 @@ import { listUsers } from "./controllers/user.controller.js";
 const router = Router();
 
 router.get("/healthz", (req, res) => res.json({ ok: true }));
+router.get("/auth/me", verifyToken, me);
 
 router.post("/auth/signup", signup);
 router.post("/auth/login", login);
-router.get("/auth/me", verifyToken, me);
+router.post("/auth/google", handleGoogleLogin);
+
 // Admin-only: promote a user to a role (default: Manager)
 router.put("/auth/:id/role", verifyToken, checkRole(ROLES.ADMIN), promoteRole);
 

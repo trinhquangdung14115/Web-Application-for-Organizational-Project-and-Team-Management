@@ -8,7 +8,7 @@
     "dev": "nodemon src/server.js",
     "seed": "node scripts/seed.js",
     "seed:users": "node scripts/seed-users.js",
-    "seed:projects": "node scripts/seed-projects.js", 
+    "seed:projects": "node scripts/seed-projects.js",
     "seed:tasks": "node scripts/seed-tasks.js",
     "seed:all": "npm run seed:users && npm run seed:projects && npm run seed:tasks"
   },
@@ -19,6 +19,7 @@
     "dotenv": "^16.6.1",
     "express": "^4.18.2",
     "express-list-endpoints": "^7.1.1",
+    "google-auth-library": "^10.5.0",
     "jsonwebtoken": "^9.0.2",
     "mongodb": "^7.0.0",
     "mongoose": "^8.19.2",

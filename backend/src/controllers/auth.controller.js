@@ -1,5 +1,8 @@
 import User from "../models/user.model.js";
 import { signToken } from "../utils/jwt.js";
+import { OAuth2Client } from "google-auth-library";
+
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 function toPublicUser(u) {
   return {
@@ -72,6 +75,59 @@ export async function login(req, res, next) {
   }
 }
 
+// POST /auth/google
+export async function handleGoogleLogin(req, res, next) {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ success: false, message: "No credential provided" });
+    }
+
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    const { email, name, picture } = payload;
+
+
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      const randomPassword = Math.random().toString(36).slice(-8) + Math.random().toString(36).slice(-8);
+      
+      user = await User.create({
+        name,
+        email,
+        password: randomPassword, 
+        role: "Member",
+      });
+    }
+
+    // Tạo JWT Token (Token hệ thống)
+    const token = signToken({ sub: user._id.toString(), role: user.role });
+
+    // Trả về Response chuẩn format
+    return res.status(200).json({
+      success: true,
+      message: "Google login successful",
+      data: {
+        token,
+        tokenType: "Bearer",
+        user: toPublicUser(user),
+      },
+    });
+
+  } catch (err) {
+    console.error("Google Auth Error:", err);
+    return res.status(400).json({ 
+      success: false, 
+      message: "Google authentication failed",
+      error: err.message 
+    });
+  }
+}
 // GET /auth/me
 export async function me(req, res, next) {
   try {
