@@ -65,7 +65,7 @@ export const getMe = async () => {
  */
 export const loginWithGoogle = async (credential) => {
   try {
-    // Gọi endpoint mà chúng ta sắp viết ở Backend
+    // Gọi endpoint ở Backend
     const response = await axiosInstance.post("/auth/google", { credential });
     
     // Nếu login thành công (BE trả về token)

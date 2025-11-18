@@ -7,7 +7,7 @@ import "./index.css";
 import { AuthProvider } from "./services/AuthContext.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
-  <GoogleOAuthProvider clientId="import.meta.env.VITE_GOOGLE_CLIENT_ID">
+  <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID}>
     <React.StrictMode>
       <BrowserRouter>
       <AuthProvider>
@@ -17,3 +17,5 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </React.StrictMode>
   </GoogleOAuthProvider>
 );
+
+console.log("DEBUG CLIENT ID:", import.meta.env.VITE_GOOGLE_CLIENT_ID);
