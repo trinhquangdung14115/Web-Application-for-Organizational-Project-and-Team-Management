@@ -5,20 +5,10 @@ import {
     UserCircleIcon 
 } from '@heroicons/react/24/outline';
 import NotificationBell from './NotificationBell'; 
-import { useAuth } from '../services/AuthContext'; 
-
 
 // === TÁCH HEADERICONS VÀ NHẬN PROPS ===
-const HeaderIcons = ({   unreadCount, onLogout }) => {
+const HeaderIcons = ({ user, unreadCount, onLogout }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const { user, logout } = useAuth();
-    const initials = user?.name
-  ? user.name
-      .split(" ")
-      .map(word => word[0])
-      .join("")
-      .toUpperCase()
-  : "??";
 
     return (
         <div className="flex space-x-4 items-center">
@@ -33,10 +23,10 @@ const HeaderIcons = ({   unreadCount, onLogout }) => {
                     onClick={() => setIsDropdownOpen(prev => !prev)}
                 >
                     <div className="relative w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-700">
-                        {initials || '??'}
+                        {user.initials || '??'}
                     </div>
                     {/* Hiển thị tên (ẩn trên mobile) */}
-                    <span className="text-sm font-medium text-gray-700 hidden md:block">{user?.name}</span>
+                    <span className="text-sm font-medium text-gray-700 hidden md:block">{user.name}</span>
                     <ChevronDownIcon className="w-4 h-4 text-gray-700" />
                 </button>
 
@@ -48,8 +38,8 @@ const HeaderIcons = ({   unreadCount, onLogout }) => {
                     >
                         {/* Hiển thị thông tin user */}
                         <div className="px-4 py-3 border-b">
-                            <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
-                            <p className="text-xs text-gray-500 truncate">{user?.role}</p>
+                            <p className="text-sm font-medium text-gray-900 truncate">{user.name}</p>
+                            <p className="text-xs text-gray-500 truncate">{user.role}</p>
                         </div>
                         {/* Nút Profile (UI-only) */}
                         <a href="#" className="flex items-center gap-3 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
@@ -73,7 +63,7 @@ const HeaderIcons = ({   unreadCount, onLogout }) => {
 
 
 // Component Navbar chính (nhận props từ MainLayout)
-const Navbar = ({ title, subtitle, unreadCount, onLogout }) => {
+const Navbar = ({ title, subtitle, user, unreadCount, onLogout }) => {
   return (
     <header className="flex justify-between items-start p-5 border-b bg-white sticky top-0 z-40">
         {/* Phần Title */}
@@ -84,6 +74,7 @@ const Navbar = ({ title, subtitle, unreadCount, onLogout }) => {
 
         {/* 4. Truyền tất cả props xuống HeaderIcons */}
         <HeaderIcons 
+            user={user}
             unreadCount={unreadCount}
             onLogout={onLogout}
         />

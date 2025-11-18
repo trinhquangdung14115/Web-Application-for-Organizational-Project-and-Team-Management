@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { signup } from '../services/authService';
 import tag from '../assets/images/logo.png';
 import { Mail, Lock, User } from "lucide-react";
-import { GoogleLogin } from '@react-oauth/google';
-import { loginWithGoogle } from '../services/authService';
+
 const SignUpPage = () => {
   const [formData, setFormData] = useState({
     firstName: '',
@@ -24,26 +23,6 @@ const SignUpPage = () => {
     }));
   };
 
-  const handleGoogleSuccess = async (credentialResponse) => {
-  try {
-    const { credential } = credentialResponse;
-    // Gọi hàm service (đã thống nhất) để gửi token lên BE
-    const data = await loginWithGoogle(credential); 
-    
-    // TODO: Đợi FE1 làm AuthContext
-    // auth.login(data.user, data.token); // Cập nhật state toàn app
-    
-    navigate('/home'); // Chuyển trang
-  } catch (err) {
-    console.error("Google login failed", err);
-    setError("Google login failed. Please try again.");
-  }
-};
-
-const handleGoogleError = () => {
-  console.error('Google Login Failed');
-  setError("Google login failed.");
-};
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -62,8 +41,8 @@ const handleGoogleError = () => {
       setIsLoading(true);
       const name = `${formData.firstName} ${formData.lastName}`.trim();
       await signup(name, formData.email, formData.password);
-      // Đăng ký thành công, chuyển hướng về trang đăng nhập
-      navigate('/login');
+      // Đăng ký thành công, chuyển hướng về trang chủ
+      navigate('/home');
     } catch (err) {
       console.error('Signup error:', err);
       setError(err.error?.message || 'Signup failed. Please try again!');
@@ -177,13 +156,15 @@ const handleGoogleError = () => {
             <hr className="border-gray-400" />
           </div>
 
-          <GoogleLogin
-            onSuccess={handleGoogleSuccess}
-            onError={handleGoogleError}
-            theme="outline" // Tùy chỉnh giao diện
-            size="large"
-            width="100%"
-          />
+          <button className="bg-white border py-2 w-full rounded-xl mt-5 flex justify-center items-center text-sm hover:scale-105 duration-300 text-black" disabled={isLoading}>
+            <svg className="w-4 h-4 mr-2" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.28-1.93-6.14-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.86 14.1c-.25-.75-.38-1.56-.38-2.4 0-.84.14-1.65.38-2.4V6.46H2.18C1.43 8.26 1 10.24 1 12.25s.43 4 1.18 5.79l3.68-2.84z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 6.96l3.68 2.84c.86-2.6 3.28-4.42 6.14-4.42z" fill="#EA4335"/>
+            </svg>
+            Sign up with Google
+          </button>
 
           <p className="text-center text-white mt-6 text-sm">
             Already have an account?{" "}

@@ -16,7 +16,7 @@ const PRIMARY_COLOR = '#f35640';
 
 // === MENU ITEMS CHO SIDEBAR ===
 const menuItems = [
-    { name: 'Dashboard', icon: Squares2X2Icon, href: '/home' },
+    { name: 'Dashboard', icon: Squares2X2Icon, href: '/dashboard' },
     { name: 'My Tasks', icon: FolderIcon, href: '/tasks' },
     { name: 'Calendar', icon: CalendarDaysIcon, href: '/calendar' },
     { name: 'Members', icon: UsersIcon, href: '/members' },
@@ -70,7 +70,7 @@ const SideBar = ({ unreadCount }) => {
         >
             {/* (Logo Section) */}
             <div className="flex items-center justify-center gap-2 px-3 pt-8 pb-4">
-                <a className='flex items-center' href='/home'> 
+                <a className='flex items-center' href='/dashboard'> 
                     <img
                         className="h-9 w-auto"
                         src={ logo } 

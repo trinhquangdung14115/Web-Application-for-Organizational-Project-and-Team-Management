@@ -59,35 +59,7 @@ export const getMe = async () => {
     return null; // Nếu lỗi 401 thì xóa token và trả về null
   }
 };
-/**
- * Đăng nhập bằng Google (Thêm hàm này vào)
- * @param {string} credential - Token Google trả về
- */
-export const loginWithGoogle = async (credential) => {
-  try {
-    // Gọi endpoint mà chúng ta sắp viết ở Backend
-    const response = await axiosInstance.post("/auth/google", { credential });
-    
-    // Nếu login thành công (BE trả về token)
-    if (response.data?.data?.token) {
-      const { token, user } = response.data.data;
-      
-      // Lưu token và user vào LocalStorage (giống hệt luồng login thường)
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(user));
-      
-      // Gán token vào header cho các request sau
-      axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
-      
-      return response.data.data;
-    }
-    return response.data;
-  } catch (error) {
-    console.error("Google Login Service Error:", error);
-    // Trả về lỗi chuẩn để UI hiển thị
-    throw error.response?.data || { error: { message: "Google Login Failed" } };
-  }
-};
+
 // Đăng xuất
 export const logout = () => {
   localStorage.removeItem("token");
