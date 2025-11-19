@@ -15,7 +15,10 @@ dotenv.config();
 const app = express();
 
 app.use(cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: ['http://localhost:5173',
+           'http://localhost:3000',
+          'https://web-application-for-organizational-project-and-team.vercel.app', // Link chính
+          'https://web-application-for-organizational.vercel.app'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization']
