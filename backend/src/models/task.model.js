@@ -1,5 +1,10 @@
 import mongoose from "mongoose";
 
+const subtaskSchema = new mongoose.Schema({
+  title: { type: String, required: true },
+  isCompleted: { type: Boolean, default: false }
+});
+
 const taskSchema = new mongoose.Schema(
   {
     projectId: { 
@@ -7,11 +12,7 @@ const taskSchema = new mongoose.Schema(
       ref: "Project", 
       required: true 
     },
-    parentId: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: "Task", 
-      default: null 
-    },
+    // Removed parentId as requested by Leader
     title: { 
       type: String, 
       required: true 
@@ -30,15 +31,15 @@ const taskSchema = new mongoose.Schema(
     },
     status: { 
       type: String, 
-      enum: ["TODO", "DOING", "DONE","BACKLOG"], 
+      enum: ["TODO", "DOING", "DONE", "BACKLOG"], 
       default: "TODO" 
     },
     startDate: { 
       type: Date 
     },
     dueDate: {
-    type: Date,
-    required: false, 
+      type: Date,
+      required: false, 
     },
     estimateHours: { 
       type: Number, 
@@ -55,9 +56,11 @@ const taskSchema = new mongoose.Schema(
     deletedAt: { 
       type: Date, 
       default: null 
-    }
+    },
+    // New field for embedded subtasks
+    subtasks: [subtaskSchema]
   },
-  { timestamps: true } // tự thêm createdAt và updatedAt
+  { timestamps: true }
 );
 
 export default mongoose.model("Task", taskSchema);
