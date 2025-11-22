@@ -8,7 +8,7 @@ import {
   deleteTask,
 } from "../controllers/task.controller.js";
 import { verifyToken, checkRole } from "../middlewares/auth.js";
-
+import { checkProjectActive } from "../middlewares/project.middlewares.js";
 const router = express.Router();
 
 /**
@@ -31,14 +31,15 @@ router.get("/projects/:id/tasks", verifyToken, getTasksByProject);
  * @desc    Tạo task mới trong project (chỉ Admin/Manager)
  * @access  Private (Admin/Manager)
  */
-router.post("/projects/:id/tasks", verifyToken, checkRole("Admin", "Manager"), createTask);
+// đã add checkprj active
+router.post("/projects/:id/tasks", verifyToken, checkRole("Admin", "Manager"),checkProjectActive, createTask);
 
 /**
  * @route   PUT /tasks/:id
  * @desc    Cập nhật thông tin task (title, assignee,...)
  * @access  Private (Admin/Manager/Member)
  */
-router.put("/tasks/:id", verifyToken, updateTask);
+router.put("/tasks/:id", verifyToken,checkProjectActive, updateTask);
 
 /**
  * @route   PATCH /tasks/:id
@@ -52,6 +53,6 @@ router.patch("/tasks/:id", verifyToken, updateTaskStatus);
  * @desc    Xóa mềm 1 task (đánh dấu deletedAt)
  * @access  Private (Admin/Manager)
  */
-router.delete("/tasks/:id", verifyToken, checkRole("Admin", "Manager"), deleteTask);
+router.delete("/tasks/:id", verifyToken, checkRole("Admin", "Manager"), checkProjectActive,deleteTask);
 
 export default router;

@@ -37,8 +37,12 @@ const seedProjects = async () => {
       }
     ];
 
-    await Project.insertMany(projects);
-    console.log("Seed projects completed! Created 2 projects");
+    const createdProjects = await Project.insertMany(projects);
+    console.log("Seed completed")
+    console.log("ID:");
+    createdProjects.forEach(p => {
+      console.log(`Project: "${p.name}" | ID: ${p._id}`);
+});
 
     process.exit(0);
   } catch (err) {

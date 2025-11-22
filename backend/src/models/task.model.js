@@ -30,7 +30,7 @@ const taskSchema = new mongoose.Schema(
     },
     status: { 
       type: String, 
-      enum: ["TODO", "DOING", "DONE"], 
+      enum: ["TODO", "DOING", "DONE","BACKLOG"], 
       default: "TODO" 
     },
     startDate: { 

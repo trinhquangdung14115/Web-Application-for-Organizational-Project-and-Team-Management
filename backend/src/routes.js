@@ -11,6 +11,7 @@ import {
   getProjectMembers,
 } from "./controllers/project.controller.js";
 import { listUsers } from "./controllers/user.controller.js";
+import taskRoutes from "./routes/task.routes.js";
 
 const router = Router();
 
@@ -39,6 +40,8 @@ router.get("/protected/manager",
   checkRole(ROLES.ADMIN, ROLES.MANAGER),
   (req, res) => res.json({ message: "Manager or Admin content" })
 );
+
+router.use("/", taskRoutes);
 
 // Projects
 router.post("/projects", verifyToken, checkRole(ROLES.ADMIN, ROLES.MANAGER), createProject);

@@ -1,4 +1,5 @@
 import Project from "../models/project.model.js";
+import ProjectMember from "../models/projectMember.model.js";
 import User from "../models/user.model.js";
 import mongoose from "mongoose";
 
@@ -76,19 +77,32 @@ export const deleteProject = async (req, res) => {
 // GET /projects/:id/members -> return mock list if no populated members
 export const getProjectMembers = async (req, res) => {
   try {
-    const { id } = req.params;
-    const project = await Project.findById(id).populate("members.user", "name email role");
-    if (!project) return res.status(404).json({ message: "Project not found" });
+    const { id } = req.params; //  projectId
 
-    // If members populated, map to public info
-    const members = project.members.map((m) => ({ id: m.user?._id || m.user, name: m.user?.name || "Unknown", email: m.user?.email || "", role: m.role }));
+    // Query bảng riêng ProjectMember
+    const members = await ProjectMember.find({ projectId: id })
+      .populate("userId", "name email"); // Chỉ lấy name, email từ bảng User
 
-    // If empty, return a mock list
-    if (!members.length) {
-      return res.json({ success: true, data: [ { id: null, name: "Mock User", email: "mock@example.com", role: "Member" } ] });
-    }
+    //  Chuẩn hóa dữ liệu trả về FE
+    const formattedData = members.map((m) => {
+        // Guard clause: Đề phòng user bị xóa khỏi DB
+        if (!m.userId) return null;
 
-    res.json({ success: true, data: members });
+        return {
+            userId: m.userId._id,        // ID của User
+            name: m.userId.name,         // Tên từ bảng User
+            email: m.userId.email,       // Email từ bảng User
+            projectRole: m.roleInProject,// Role trong dự án (Manager/Member)
+            status: m.status,            // Trạng thái (ACTIVE/PENDING)
+            joinedAt: m.createdAt
+        };
+    }).filter(m => m !== null); // Lọc bỏ null
+
+    res.status(200).json({ 
+        success: true, 
+        data: formattedData 
+    });
+
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

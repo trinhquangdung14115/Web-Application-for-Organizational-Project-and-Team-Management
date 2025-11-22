@@ -57,7 +57,7 @@ export const deleteTask = async (taskId) => {
  */
 export const updateTaskStatus = async (taskId, newStatus) => {
   try {
-    const response = await axiosInstance.put(`/tasks/${taskId}`, { status: newStatus });
+    const response = await axiosInstance.patch(`/tasks/${taskId}`, { status: newStatus });
     return response.data.data;
   } catch (error) {
     console.error("Lỗi khi cập nhật trạng thái công việc:", error);
