@@ -7,6 +7,8 @@ import {
 import NotificationBell from './NotificationBell'; 
 import { useAuth } from '../services/AuthContext'; 
 
+const PRIMARY_COLOR = '#f35640';
+
 
 // === TÁCH HEADERICONS VÀ NHẬN PROPS ===
 const HeaderIcons = ({   unreadCount, onLogout }) => {
@@ -32,8 +34,14 @@ const HeaderIcons = ({   unreadCount, onLogout }) => {
                     className="flex items-center space-x-2 cursor-pointer p-1"
                     onClick={() => setIsDropdownOpen(prev => !prev)}
                 >
-                    <div className="relative w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-blue-700">
-                        {initials || '??'}
+                    <div 
+                        className="relative w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
+                        style={{ 
+                            backgroundColor: `${PRIMARY_COLOR}20`, 
+                            color: PRIMARY_COLOR                  
+                        }}
+                    >
+                        {initials}
                     </div>
                     {/* Hiển thị tên (ẩn trên mobile) */}
                     <span className="text-sm font-medium text-gray-700 hidden md:block">{user?.name}</span>

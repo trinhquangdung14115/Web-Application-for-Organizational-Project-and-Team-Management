@@ -18,7 +18,7 @@ const MainLayout = () => {
   const location = useLocation();
   const navigate = useNavigate();
   // Lấy user + logout từ AuthContext
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   useEffect(() => {
     // Xác định title và subtitle dựa trên pathname
@@ -92,8 +92,7 @@ const MainLayout = () => {
 
   // Hàm Logout
   const handleLogout = () => {
-    console.log("Logging out (UI-only)...");
-    // ( sẽ xóa token ở đây)
+    logout();
     navigate('/login'); // Chuyển về trang login
   };
 

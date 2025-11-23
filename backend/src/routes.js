@@ -52,6 +52,6 @@ router.delete("/projects/:id", verifyToken, checkRole(ROLES.ADMIN, ROLES.MANAGER
 router.get("/projects/:id/members", verifyToken, getProjectMembers);
 
 // Users (admin)
-router.get("/users", verifyToken, checkRole(ROLES.ADMIN), listUsers);
+router.get("/users", verifyToken, listUsers); // bỏ checkrole để member cũng xem được
 
 export default router;

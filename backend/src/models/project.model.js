@@ -16,6 +16,7 @@ const projectSchema = new mongoose.Schema(
 		members: { type: [memberSchema], default: [] },
 		meta: { type: Object, default: {} },
 		deletedAt: { type: Date, default: null },
+		deadline: { type: Date },
 	},
 	{ timestamps: true }
 );

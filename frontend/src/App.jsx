@@ -17,8 +17,7 @@ import AppRouter from "./routes/AppRouter.jsx";
 function App() {
   return (
     <Routes>
-      
-      {/* trang mặc định */}
+
       <Route path="/" element={<Navigate to="/login" />} />
 
       {/* login */}
