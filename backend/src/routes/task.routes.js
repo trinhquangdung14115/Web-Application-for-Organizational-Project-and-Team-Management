@@ -11,7 +11,6 @@ import {
   deleteSubtask  // Imported new controller
 } from "../controllers/task.controller.js";
 import { verifyToken, checkRole } from "../middlewares/auth.js";
-import { checkProjectActive } from "../middlewares/project.middlewares.js";
 
 const router = express.Router();
 
@@ -34,14 +33,14 @@ router.get("/projects/:id/tasks", verifyToken, getTasksByProject);
  * @desc    Create a new task in a project (Admin/Manager only)
  * @access  Private (Admin/Manager)
  */
-router.post("/projects/:id/tasks", verifyToken, checkRole("Admin", "Manager"), checkProjectActive, createTask);
+router.post("/projects/:id/tasks", verifyToken, checkRole("Admin", "Manager"), createTask);
 
 /**
  * @route   PUT /tasks/:id
  * @desc    Update task details (title, assignee, etc.)
  * @access  Private (Admin/Manager/Member)
  */
-router.put("/tasks/:id", verifyToken, checkProjectActive, updateTask);
+router.put("/tasks/:id", verifyToken, updateTask);
 
 /**
  * @route   PATCH /tasks/:id
@@ -55,27 +54,6 @@ router.patch("/tasks/:id", verifyToken, updateTaskStatus);
  * @desc    Soft delete a task (mark as deletedAt)
  * @access  Private (Admin/Manager)
  */
-router.delete("/tasks/:id", verifyToken, checkRole("Admin", "Manager"), checkProjectActive, deleteTask);
-
-/**
- * @route   POST /tasks/:taskId/subtasks
- * @desc    Add subtask (embedded)
- * @access  Private
- */
-router.post("/tasks/:taskId/subtasks", verifyToken, createSubtask);
-
-/**
- * @route   PATCH /tasks/:taskId/subtasks/:subtaskId
- * @desc    Toggle subtask completion status
- * @access  Private
- */
-router.patch("/tasks/:taskId/subtasks/:subtaskId", verifyToken, toggleSubtask);
-
-/**
- * @route   DELETE /tasks/:taskId/subtasks/:subtaskId
- * @desc    Delete subtask
- * @access  Private
- */
-router.delete("/tasks/:taskId/subtasks/:subtaskId", verifyToken, deleteSubtask);
+router.delete("/tasks/:id", verifyToken, checkRole("Admin", "Manager"), deleteTask);
 
 export default router;

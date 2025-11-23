@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import { getProjects } from '../services/projectService';
 import { 
   ClipboardDocumentListIcon as TotalSolid, 
   ClockIcon as ClockSolid,
@@ -100,8 +101,8 @@ const MyTasks = () => {
   const [isEmpty, setIsEmpty] = useState(false);
   const [error, setError] = useState(null);
 
-  // Hardcode projectId để test (đổi thành id thật)
-  const PROJECT_ID = '6920938443e749e7290bf145';
+  // đổi thành id thật)
+  const [currentProjectId, setCurrentProjectId] = useState(null);
 
   // Map status backend <-> UI columns
   const STATUS_COLUMN_MAP = {
@@ -118,14 +119,42 @@ const MyTasks = () => {
     'Done': 'DONE',
   };
 
-  // ===== Fetch tasks từ API khi vào /tasks =====
+  // ===== Lấy danh sách Project để tìm ID dự án =====
   useEffect(() => {
+    const fetchFirstProject = async () => {
+      try {
+        const projects = await getProjects(); // Gọi API Get Projects
+        if (projects && projects.length > 0) {
+          // Lấy ID của dự án đầu tiên
+          console.log("Found Project ID:", projects[0]._id);
+          setCurrentProjectId(projects[0]._id);
+        } else {
+          // Không có dự án nào
+          setIsLoading(false);
+          setIsEmpty(true);
+        }
+      } catch (err) {
+        console.error("Failed to load projects", err);
+        setError("Could not load projects. Please try again.");
+        setIsLoading(false);
+      }
+    };
+
+    fetchFirstProject();
+  }, []);
+
+  // có currentProjectId -> Fetch Tasks
+  useEffect(() => {
+    // Nếu chưa có ID project, không làm gì cả
+    if (!currentProjectId) return;
+
     const fetchTasks = async () => {
       try {
         setIsLoading(true);
         setError(null);
 
-        const apiTasks = await getTasksByProject(PROJECT_ID);
+        // Gọi API với ID động
+        const apiTasks = await getTasksByProject(currentProjectId);
 
         const normalized = (apiTasks || []).map((t) => ({
           id: t.id || t._id, // tuỳ backend
@@ -146,12 +175,14 @@ const MyTasks = () => {
         // Nếu backend trả 401 => logout 
         const status = err?.status || err?.response?.status;
         if (status === 401) {
-          // TODO: xoá token nếu đang lưu ở localStorage / cookies
+          // Xóa token
+          localStorage.removeItem('token');
+          localStorage.removeItem('user');
           navigate('/login');
           return;
         }
 
-        setError(err?.error?.message || 'Failed to load tasks');
+        setError(err?.response?.data?.message || err?.error?.message || 'Failed to load tasks');
         setIsEmpty(true);
       } finally {
         setIsLoading(false);
@@ -159,7 +190,7 @@ const MyTasks = () => {
     };
 
     fetchTasks();
-  }, [PROJECT_ID, navigate]);
+  }, [currentProjectId, navigate]);
 
   // ===== Drag & Drop + PATCH status =====
   const handleDragEnd = async ({ source, destination, draggableId }) => {
@@ -198,7 +229,6 @@ const MyTasks = () => {
     }
   };
 
-  // ===== Sort tasks by priority (High -> Medium -> Low) =====
   // ===== Sort tasks by priority (High -> Medium -> Low) =====
   const PRIORITY_ORDER = { High: 0, Medium: 1, Low: 2 };
 
