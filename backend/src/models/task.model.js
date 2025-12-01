@@ -57,6 +57,7 @@ const taskSchema = new mongoose.Schema(
       type: Date, 
       default: null 
     },
+    orderIndex: { type: Number, default: 0 },
     // New field for embedded subtasks
     subtasks: [subtaskSchema]
   },

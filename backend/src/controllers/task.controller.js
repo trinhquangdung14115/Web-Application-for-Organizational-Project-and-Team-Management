@@ -20,7 +20,9 @@ export const getTasksByProject = async (req, res) => {
       });
     }
 
+    // Sort theo orderIndex tăng dần (Task nào index nhỏ nằm trên)
     const tasks = await Task.find({ projectId, deletedAt: null })
+      .sort({ orderIndex: 1 }) 
       .populate("assigneeId", "name email role")
       .populate("projectId", "name");
 
@@ -48,6 +50,7 @@ export const getFilteredTasks = async (req, res) => {
     if (status) filter.status = status;
 
     const tasks = await Task.find(filter)
+      .sort({ orderIndex: 1 })
       .populate("assigneeId", "name email role")
       .populate("projectId", "name");
 
@@ -79,7 +82,7 @@ export const createTask = async (req, res) => {
       dueDate,
       estimateHours,
       spentHours,
-      orderIndex,
+      // orderIndex, // Không lấy từ body nữa mà tự tính
     } = req.body;
 
     if (!title) {
@@ -102,17 +105,30 @@ export const createTask = async (req, res) => {
       ? new mongoose.Types.ObjectId(assigneeId)
       : null;
 
+    // === LOGIC MỚI: Tự động tính Order Index theo Priority ===
+    // High: ~1000 (Lên đầu)
+    // Medium: ~5000 (Ở giữa)
+    // Low: ~9000 (Xuống cuối)
+    let baseIndex = 5000; 
+    if (priority === 'High' || priority === 'HIGH') baseIndex = 1000;
+    if (priority === 'Low' || priority === 'LOW') baseIndex = 9000;
+
+    // Cộng thêm phần thập phân từ timestamp để tránh trùng lặp tuyệt đối
+    // Ví dụ: 5000.4521
+    const calculatedOrderIndex = baseIndex + ((Date.now() % 10000) / 10000);
+    // ========================================================
+
     const task = new Task({
       title,
       description,
-      priority,
+      priority: priority || 'Medium',
       status,
       assigneeId: convertedAssigneeId,
       startDate,
       dueDate,
       estimateHours,
       spentHours,
-      orderIndex,
+      orderIndex: calculatedOrderIndex, // <--- Gán giá trị vừa tính
       projectId: convertedProjectId,
     });
 
@@ -250,6 +266,43 @@ export const updateTaskStatus = async (req, res) => {
     });
   } catch (error) {
     res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Reorder Task (Kanban Drag & Drop)
+ * @route   PATCH /tasks/reorder
+ * @access  Private
+ */
+export const reorderTask = async (req, res) => {
+  try {
+    const { taskId, newStatus, newPosition } = req.body;
+
+    // Validate dữ liệu
+    if (!taskId || newPosition === undefined) {
+        return res.status(400).json({ success: false, message: "Missing taskId or newPosition" });
+    }
+
+    // Update Task
+    const updatedTask = await Task.findByIdAndUpdate(
+      taskId,
+      { 
+        $set: { 
+          status: newStatus,       // Cập nhật cột (nếu có đổi cột)
+          orderIndex: newPosition  // Cập nhật vị trí (số thực)
+        } 
+      },
+      { new: true } // Trả về data mới nhất sau update
+    );
+
+    if (!updatedTask) {
+      return res.status(404).json({ success: false, message: "Task not found" });
+    }
+
+    res.json({ success: true, message: "Task reordered successfully", data: updatedTask });
+
+  } catch (err) {
+    res.status(500).json({ success: false, error: "ServerError", message: err.message });
   }
 };
 

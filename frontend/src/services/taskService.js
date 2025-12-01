@@ -65,10 +65,17 @@ export const updateTaskStatus = async (taskId, newStatus) => {
   }
 };
 
+export const reorderTask = async (taskId, newStatus, newPosition) => {
+  // Gọi PATCH /tasks/reorder
+  // Endpoint này BE phải implement logic nhận position kiểu Float
+  return axiosInstance.patch(`/tasks/reorder`, { taskId, newStatus, newPosition });
+}; 
+
 export default {
   getTasksByProject,
   createTask,
   updateTask,
   deleteTask,
   updateTaskStatus,
+  reorderTask,
 };
