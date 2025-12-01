@@ -151,27 +151,36 @@ export const toggleArchive = async (req, res) => {
  */
 export const getProjectSummary = async (req, res) => {
   try {
-    const { id } = req.params;
+    const {id} = req.params;
 
     const project = await Project.findById(id);
-    if (!project) return res.status(404).json({ success: false, error: "NotFoundError", message: "Project not found" });
+    if(!project) return res.status(404).json({success:false,error:"NotFoundError", message: "Project not found"});
 
-    const tasks = await Task.find({ projectId: id, deletedAt: null });
-    
-    const totalTasks = tasks.length;
-    const todo = tasks.filter(t => t.status === "TODO").length;
-    const doing = tasks.filter(t => t.status === "DOING").length;
-    const done = tasks.filter(t => t.status === "DONE").length;
+    const now = new Date();
+
+    const [totalTasks, todo , doing , done , overdue] = await Promise.all([
+      Task.countDocuments({projectId: id, deletedAt: null}),
+      Task.countDocuments({projectId: id, status: "TODO", deletedAt: null}),
+      Task.countDocuments({projectId: id, status: "DOING", deletedAt: null}),
+      Task.countDocuments({projectId: id, status: "DONE", deletedAt: null}),
+      Task.countDocuments({
+        projectId : id,
+        deletedAt: null,
+        dueDate: { $lt: now},
+        status: { $ne: "DONE" }
+      })
+    ]);
 
     let daysLeft = 0;
     if (project.endDate) {
-      const end = new Date(project.endDate);
-      const now = new Date();
-      const diffTime = end - now;
-      daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-      if (daysLeft < 0) daysLeft = 0;
+      const endDateField = project.endDate || project.deadline;
+      if (endDateField) {
+        const end = new Date(endDateField);
+        const diffTime = end - now;
+        daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        if (daysLeft < 0) daysLeft = 0;
+      }
     }
-
     res.status(200).json({
       success: true,
       data: {
@@ -179,14 +188,14 @@ export const getProjectSummary = async (req, res) => {
         todo,
         doing,
         done,
+        overdue,
         daysLeft
       }
     });
-  } catch (error) {
-    res.status(500).json({ success: false, error: "ServerError", message: error.message });
+  } catch (error){
+    res.status(500).json({success:false, error: "ServerError", message: error.message});
   }
 };
-
 /**
  * @desc    Get recent activity logs for project
  * @route   GET /projects/:id/activities
@@ -194,14 +203,25 @@ export const getProjectSummary = async (req, res) => {
 export const getProjectActivities = async (req, res) => {
   try {
     const { id } = req.params;
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
     
+    const total = await ActivityLog.countDocuments({projectId: id});
+
     const activities = await ActivityLog.find({ projectId: id })
       .populate("userId", "name email")
       .sort({ createdAt: -1 })
-      .limit(20);
+      .skip(skip)
+      .limit(limit);
 
     res.status(200).json({
       success: true,
+      page,
+      limit,
+      total,
+      totalPages: Math.ceil(total / limit),
       data: activities
     });
   } catch (error) {
