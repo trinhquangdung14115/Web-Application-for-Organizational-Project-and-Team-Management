@@ -37,7 +37,7 @@ const PriorityBadge = ({ level }) => {
 // ===== Kanban Card: click => TaskDetail page =====
 const KanbanCard = ({ task, onOpenDetail }) => {
   return (
-    <button
+    <div
       type="button"
       onClick={() => onOpenDetail(task)}
       className="w-full text-left bg-white border border-gray-200 rounded-xl px-4 py-3 shadow-sm hover:shadow-md transition"
@@ -79,7 +79,7 @@ const KanbanCard = ({ task, onOpenDetail }) => {
           {task.assignee?.[0] ?? '??'}
         </div>
       </div>
-    </button>
+    </div>
   );
 };
 
@@ -272,6 +272,12 @@ const MyTasks = () => {
 
   // ===== Drag & Drop + PATCH status ( thêm quyền) =====
   const handleDragEnd = async ({ source, destination, draggableId }) => {
+  // 1. Check cơ bản
+  if (!destination) return;
+  if (
+    source.droppableId === destination.droppableId &&
+    source.index === destination.index
+  ) return;
   // 1. Check cơ bản
   if (!destination) return;
   if (

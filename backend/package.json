@@ -24,6 +24,7 @@
     "mongodb": "^7.0.0",
     "mongoose": "^8.19.2",
     "morgan": "^1.10.1",
+    "node-cron": "^4.2.1",
     "swagger-ui-express": "^5.0.1",
     "yamljs": "^0.3.0"
   },
