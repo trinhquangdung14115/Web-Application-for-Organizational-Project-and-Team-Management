@@ -241,7 +241,7 @@ const MyTasks = () => {
                 assignee: assigneeName,
                 assigneeId: assigneeId,
                 dueSoon: isDueSoon,
-                labels: [], 
+                labels: t.labels || [], 
                 position: t.orderIndex || 0,
             };
         });

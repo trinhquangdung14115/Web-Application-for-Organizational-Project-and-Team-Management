@@ -41,6 +41,9 @@ const taskSchema = new mongoose.Schema(
       type: Date,
       required: false, 
     },
+    labels: [{ 
+    type: String 
+    }],
     estimateHours: { 
       type: Number, 
       default: 0,
