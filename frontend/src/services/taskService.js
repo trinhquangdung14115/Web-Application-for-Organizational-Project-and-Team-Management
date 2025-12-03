@@ -1,15 +1,52 @@
 import axiosInstance from "./api";
 
 /**
- * Lấy danh sách công việc trong dự án
+ * Lấy danh sách công việc (Sử dụng endpoint /tasks để hỗ trợ lọc)
+ * @param {string} projectId 
+ * @param {object} filters - { label: '', assignee: '' }
  */
-export const getTasksByProject = async (projectId) => {
+export const getTasksByProject = async (projectId, filters = {}) => {
   try {
-    const response = await axiosInstance.get(`/projects/${projectId}/tasks`);
+    // Backend controller `getFilteredTasks` hỗ trợ query: project, assignee, status
+    const params = new URLSearchParams();
+    
+    // Luôn filter theo project hiện tại
+    params.append('project', projectId);
+
+    // Nếu có filter assignee (và không phải 'all')
+    if (filters.assignee) {
+        params.append('assignee', filters.assignee);
+    }
+
+    // Backend hiện chưa support filter theo 'label' trong model, 
+    // nhưng nếu sau này có thì ta append vào đây.
+    if (filters.label) {
+        params.append('label', filters.label);
+    }
+
+    const queryString = params.toString();
+    // Gọi vào GET /tasks thay vì /projects/:id/tasks
+    const url = `/tasks${queryString ? `?${queryString}` : ''}`;
+
+    const response = await axiosInstance.get(url);
+    // Backend trả về { success: true, data: [...] }
     return response.data.data || [];
   } catch (error) {
     console.error("Lỗi khi lấy danh sách công việc:", error);
     throw error.response?.data || { error: { message: "Failed to load tasks" } };
+  }
+};
+
+/**
+ * Lấy danh sách thành viên của dự án
+ */
+export const getProjectMembers = async (projectId) => {
+  try {
+    const response = await axiosInstance.get(`/projects/${projectId}/members`);
+    return response.data.data || [];
+  } catch (error) {
+    console.error("Lỗi khi lấy thành viên dự án:", error);
+    return [];
   }
 };
 
@@ -53,7 +90,7 @@ export const deleteTask = async (taskId) => {
 };
 
 /**
- * Thay đổi trạng thái công việc (kanban)
+ * Thay đổi trạng thái công việc
  */
 export const updateTaskStatus = async (taskId, newStatus) => {
   try {
@@ -66,22 +103,22 @@ export const updateTaskStatus = async (taskId, newStatus) => {
 };
 
 /**
- * Lấy chi tiết 1 task theo id
+ * Lấy chi tiết 1 task
  */
 export const getTaskById = async (taskId) => {
   try {
     const response = await axiosInstance.get(`/tasks/${taskId}`);
-    return response.data.data;        // chuẩn format { success, data }
+    return response.data.data;
   } catch (error) {
     console.error("Lỗi khi lấy chi tiết công việc:", error);
     throw error.response?.data || { error: { message: "Failed to load task detail" } };
   }
 };
 
-
+/**
+ * Kéo thả task
+ */
 export const reorderTask = async (taskId, newStatus, newPosition) => {
-  // Gọi PATCH /tasks/reorder
-  // Endpoint này BE phải implement logic nhận position kiểu Float
   return axiosInstance.patch(`/tasks/reorder`, { taskId, newStatus, newPosition });
 }; 
 
@@ -93,4 +130,5 @@ export default {
   updateTaskStatus,
   getTaskById, 
   reorderTask,
+  getProjectMembers
 };

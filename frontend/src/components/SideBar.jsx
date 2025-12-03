@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import logo from '../assets/images/syncora.png'; 
-//import logoadmin from '../assets/images/syncora_admin.png'; sau này sửa đc logo dep thi them vao day
+import logo from '../assets/images/syncora-official.png'; 
+import logoadmin from '../assets/images/syncora-admin.png'; 
 import { useAuth } from '../services/AuthContext'; 
 
 import { 
@@ -62,7 +62,7 @@ const SideBar = ({ unreadCount, basePath="" }) => {
     const location = useLocation();
     const { user } = useAuth(); 
     const currentPath = location.pathname;
-    const currentLogo = user?.role === 'Admin' ? logo : logo; // có logo thì đổi thành logoadmin : logo
+    const currentLogo = user?.role === 'Admin' ? logoadmin : logo;
 
     const isActive = (href) => {
         const fullPath = `${basePath}${href}`;
