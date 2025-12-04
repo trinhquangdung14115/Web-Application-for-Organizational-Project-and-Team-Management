@@ -1,9 +1,10 @@
+import mongoose from "mongoose";
 import User from "../models/user.model.js";
 
 // GET /users (admin only)
 export const listUsers = async (req, res) => {
   try {
-    const users = await User.find().select("name email role createdAt updatedAt");
+    const users = await User.find({ deletedAt: null }).select("name email role status createdAt updatedAt");
     res.json({ success: true, count: users.length, data: users });
   } catch (err) {
     res.status(500).json({ success: false, error: "ServerError", message: err.message });
@@ -19,15 +20,168 @@ export const searchUsers = async (req, res) => {
     }
 
     const users = await User.find({
+      deletedAt: null,
       $or: [
         { name: { $regex: q, $options: "i" } },
         { email: { $regex: q, $options: "i" } }
       ]
     })
-      .select("name email role")
+      .select("name email role status")
       .limit(20);
 
     res.json({ success: true, count: users.length, data: users });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "ServerError", message: err.message });
+  }
+};
+
+/**
+ * @desc    Get single user by ID
+ * @route   GET /users/:id
+ * @access  Private (Admin only)
+ */
+export const getUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        error: "ValidationError",
+        message: "Invalid user ID format",
+      });
+    }
+
+    const user = await User.findById(id).select("name email role status createdAt updatedAt");
+
+    if (!user || user.deletedAt) {
+      return res.status(404).json({
+        success: false,
+        error: "NotFoundError",
+        message: "User not found",
+      });
+    }
+
+    res.json({ success: true, data: user });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "ServerError", message: err.message });
+  }
+};
+
+/**
+ * @desc    Update user status (Block/Unblock)
+ * @route   PATCH /users/:id/status
+ * @access  Private (Admin only)
+ */
+export const updateUserStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    // Validate ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        error: "ValidationError",
+        message: "Invalid user ID format",
+      });
+    }
+
+    // Validate status
+    const validStatuses = ["ACTIVE", "INACTIVE", "BLOCKED"];
+    if (!status || !validStatuses.includes(status)) {
+      return res.status(400).json({
+        success: false,
+        error: "ValidationError",
+        message: `Status must be one of: ${validStatuses.join(", ")}`,
+      });
+    }
+
+    // Find user
+    const user = await User.findById(id);
+    if (!user || user.deletedAt) {
+      return res.status(404).json({
+        success: false,
+        error: "NotFoundError",
+        message: "User not found",
+      });
+    }
+
+    // Prevent admin from blocking themselves
+    if (String(user._id) === String(req.user._id) && status === "BLOCKED") {
+      return res.status(400).json({
+        success: false,
+        error: "ValidationError",
+        message: "You cannot block yourself",
+      });
+    }
+
+    // Update status
+    user.status = status;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: `User status updated to ${status}`,
+      data: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, error: "ServerError", message: err.message });
+  }
+};
+
+/**
+ * @desc    Delete user (soft delete)
+ * @route   DELETE /users/:id
+ * @access  Private (Admin only)
+ */
+export const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // Validate ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        error: "ValidationError",
+        message: "Invalid user ID format",
+      });
+    }
+
+    // Find user
+    const user = await User.findById(id);
+    if (!user || user.deletedAt) {
+      return res.status(404).json({
+        success: false,
+        error: "NotFoundError",
+        message: "User not found",
+      });
+    }
+
+    // Prevent admin from deleting themselves
+    if (String(user._id) === String(req.user._id)) {
+      return res.status(400).json({
+        success: false,
+        error: "ValidationError",
+        message: "You cannot delete yourself",
+      });
+    }
+
+    // Soft delete
+    user.deletedAt = new Date();
+    user.status = "INACTIVE";
+    await user.save();
+
+    res.json({
+      success: true,
+      message: "User deleted successfully",
+    });
   } catch (err) {
     res.status(500).json({ success: false, error: "ServerError", message: err.message });
   }

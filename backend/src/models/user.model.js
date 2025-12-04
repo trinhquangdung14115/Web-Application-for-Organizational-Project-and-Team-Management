@@ -23,6 +23,16 @@ const userSchema = new mongoose.Schema(
     },
     password: { type: String, required: true, minlength: 6, select: false },
     role: { type: String, enum: USER_ROLES, default: "Member", index: true },
+    status: {
+      type: String,
+      enum: ["ACTIVE", "INACTIVE", "BLOCKED"],
+      default: "ACTIVE",
+      index: true,
+    },
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   { timestamps: true }
 );

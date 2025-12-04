@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { me, promoteRole, signup, login, handleGoogleLogin } from "./controllers/auth.controller.js";
+import { me, promoteRole, signup, login, handleGoogleLogin, changePassword } from "./controllers/auth.controller.js";
 import { verifyToken, checkRole } from "./middlewares/auth.js";
 import { ROLES } from "./models/user.model.js";
 import {
@@ -12,15 +12,15 @@ import {
   toggleArchive,
   getProjectSummary,
   getProjectActivities,
-  getPendingRequests, 
+  getPendingRequests,
 } from "./controllers/project.controller.js";
-import { listUsers, searchUsers } from "./controllers/user.controller.js";
+import { listUsers, searchUsers, getUser, updateUserStatus, deleteUser } from "./controllers/user.controller.js";
 import { getLabels, createLabel, updateLabel, deleteLabel } from "./controllers/label.controller.js";
 import { getMembers, addMember, removeMember, joinRequest, approveMember } from "./controllers/membership.controller.js";
 import { checkProjectActive } from "./middlewares/archive.middleware.js";
 import taskRoutes from "./routes/task.routes.js";
-
-const router = Router();
+import meetingRoutes from "./routes/meeting.routes.js";
+import attendanceRoutes from "./routes/attendance.routes.js";const router = Router();
 
 router.get("/healthz", (req, res) => res.json({ ok: true }));
 router.get("/auth/me", verifyToken, me);
@@ -28,6 +28,7 @@ router.get("/auth/me", verifyToken, me);
 router.post("/auth/signup", signup);
 router.post("/auth/login", login);
 router.post("/auth/google", handleGoogleLogin);
+router.post("/auth/change-password", verifyToken, changePassword);
 
 // Admin-only: promote a user to a role (default: Manager)
 router.put("/auth/:id/role", verifyToken, checkRole(ROLES.ADMIN), promoteRole);
@@ -49,6 +50,8 @@ router.get("/protected/manager",
 );
 
 router.use("/", taskRoutes);
+router.use("/", meetingRoutes);
+router.use("/", attendanceRoutes);
 
 // Projects
 router.post("/projects", verifyToken, checkRole(ROLES.ADMIN, ROLES.MANAGER), createProject);
@@ -77,5 +80,8 @@ router.delete("/projects/:id/labels/:labelId", verifyToken, checkRole(ROLES.ADMI
 // Users
 router.get("/users", verifyToken, listUsers); // Member cũng có thể xem danh sách users
 router.get("/users/search", verifyToken, searchUsers);
+router.get("/users/:id", verifyToken, checkRole(ROLES.ADMIN), getUser);
+router.patch("/users/:id/status", verifyToken, checkRole(ROLES.ADMIN), updateUserStatus);
+router.delete("/users/:id", verifyToken, checkRole(ROLES.ADMIN), deleteUser);
 
 export default router;
