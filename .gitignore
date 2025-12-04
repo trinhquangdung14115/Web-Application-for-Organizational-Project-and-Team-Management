@@ -40,3 +40,5 @@ frontend/build/
 # ===== OS generated =====
 Thumbs.db
 desktop.ini
+stripe.exe
+stripe

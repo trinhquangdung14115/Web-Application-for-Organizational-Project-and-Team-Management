@@ -77,7 +77,12 @@ export const getProjectMembers = async (projectId) => {
     throw error.response?.data || { error: { message: "Failed to load project members" } };
   }
 };
-
+export const getProjectLabels = async (projectId) => {
+  // Logic gọi API lấy labels, ví dụ:
+  // const response = await axios.get(`/projects/${projectId}/labels`);
+  // return response.data;
+  return []; // Mock tạm nếu chưa có API
+};
 export default {
   getProjects,
   createProject,
@@ -85,4 +90,5 @@ export default {
   updateProject,
   deleteProject,
   getProjectMembers,
+  getProjectLabels,
 };
