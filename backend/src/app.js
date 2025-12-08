@@ -9,6 +9,7 @@ import commentRoutes from "./routes/comment.routes.js";
 import notificationRoutes from "./routes/notification.routes.js";
 import projectRoutes from "./routes/project.routes.js";
 import paymentRoutes from "./routes/payment.routes.js"; 
+import aiRoutes from "./routes/ai.routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import swaggerUi from "swagger-ui-express";
 import YAML from "yamljs";
@@ -47,6 +48,7 @@ app.use("/api", commentRoutes);
 app.use("/api", notificationRoutes);
 app.use("/api", projectRoutes);
 app.use("/api/payment", paymentRoutes);
+app.use("/api/ai", aiRoutes);
 
 // Hàm log routes (Debug purpose)
 function printRoutes(stack, parentPath = '') {

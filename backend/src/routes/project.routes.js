@@ -7,7 +7,10 @@ import {
   deleteProject, 
   getProjectMembers,
   getProjectSummary,
-  getProjectActivities
+  getProjectActivities,
+  getInviteCode,
+  resetInviteCode,
+  joinProjectByCode
 } from "../controllers/project.controller.js";
 import { verifyToken, checkRole } from "../middlewares/auth.js";
 
@@ -60,5 +63,26 @@ router.get("/projects/:id/summary", verifyToken, getProjectSummary);
  * @desc    Get project activity logs
  */
 router.get("/projects/:id/activities", verifyToken, getProjectActivities);
+
+/**
+ * @route   POST /projects/join
+ * @desc    Allow user to join a project using an invite code
+ * @access  Private (Authenticated Member)
+ */
+router.post("/projects/join", verifyToken, joinProjectByCode);
+
+/**
+ * @route   GET /projects/:id/invite-code
+ * @desc    Get the project's current invite code; auto-generates if code is null
+ * @access  Private (Admin/Manager)
+ */
+router.get("/projects/:id/invite-code", verifyToken, checkRole("Admin", "Manager"), getInviteCode);
+
+/**
+ * @route   PATCH /projects/:id/invite-code
+ * @desc    Generate and update the project's invite code (Reset code)
+ * @access  Private (Admin/Manager)
+ */
+router.patch("/projects/:id/invite-code", verifyToken, checkRole("Admin", "Manager"), resetInviteCode);
 
 export default router;

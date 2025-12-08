@@ -5,6 +5,15 @@ import User from "../models/user.model.js";
 import Task from "../models/task.model.js";
 import ActivityLog from "../models/activityLog.model.js";
 
+const generateRandomCode = (length = 6) => {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+  let code = '';
+  for (let i = 0; i < length; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
 // POST /projects
 export const createProject = async (req, res) => {
   try {
@@ -255,6 +264,109 @@ export const getPendingRequests = async (req, res) => {
     });
 
     res.json({ success: true, data: pendingList });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * @desc    Get current invite code, generate if null
+ * @route   GET /projects/:id/invite-code
+ * @access  Private (Admin/Manager)
+ */
+export const getInviteCode = async (req, res) => {
+  try {
+    const { id } = req.params;
+    let project = await Project.findById(id).select('inviteCode'); // Lấy riêng trường inviteCode
+    
+    if (!project) return res.status(404).json({ success: false, message: "Project not found" });
+
+    if (!project.inviteCode) {
+      let newCode;
+      let isUnique = false;
+      
+      while (!isUnique) {
+        newCode = generateRandomCode(6); 
+        const existingProject = await Project.findOne({ inviteCode: newCode });
+        if (!existingProject) {
+          isUnique = true;
+        }
+      }
+
+      project.inviteCode = newCode;
+      await project.save();
+      project = await Project.findById(id).select('inviteCode');
+    }
+
+    res.json({ success: true, code: project.inviteCode });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * @desc    Generate a new random invite code
+ * @route   PATCH /projects/:id/invite-code
+ * @access  Private (Admin/Manager)
+ */
+export const resetInviteCode = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    let newCode;
+    let isUnique = false;
+    
+    while (!isUnique) {
+      newCode = generateRandomCode(6);
+      const existingProject = await Project.findOne({ inviteCode: newCode });
+      if (!existingProject) {
+        isUnique = true;
+      }
+    }
+
+    const project = await Project.findByIdAndUpdate(
+      id,
+      { inviteCode: newCode },
+      { new: true, select: 'inviteCode' }
+    );
+
+    if (!project) return res.status(404).json({ success: false, message: "Project not found" });
+
+    res.json({ success: true, message: "Invite code reset successfully", code: project.inviteCode });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+/**
+ * @desc    Allow user to join a project using an invite code
+ * @route   POST /projects/join
+ * @access  Private (Member)
+ */
+export const joinProjectByCode = async (req, res) => {
+  try {
+    const { inviteCode } = req.body;
+    const userId = req.user._id;
+
+    if (!inviteCode) return res.status(400).json({ success: false, message: "Invite code is required" });
+
+    const project = await Project.findOne({ inviteCode });
+
+    if (!project) {
+      return res.status(404).json({ success: false, message: "Invalid or expired invite code." });
+    }
+
+    const isMember = project.members.some(member => String(member.user) === String(userId));
+
+    if (isMember) {
+      return res.status(400).json({ success: false, message: "You are already a member of this project." });
+    }
+
+    project.members.push({ user: userId, role: "Member" });
+    
+    await project.save();
+
+    res.json({ success: true, message: "Successfully joined project", projectId: project._id });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

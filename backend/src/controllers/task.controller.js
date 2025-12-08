@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Task from "../models/task.model.js";
 import Project from "../models/project.model.js";
 import ActivityLog from "../models/activityLog.model.js";
+import AIService from "../services/ai.service.js";
 
 /**
  * @desc    Get all tasks in a project (not deleted)
@@ -483,6 +484,64 @@ export const deleteSubtask = async (req, res) => {
 
     res.status(200).json({ success: true, message: "Subtask deleted", data: updatedTask });
   } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc    Generate subtasks using AI and add them to the task
+ * @route   POST /tasks/:taskId/magic-subtasks
+ * @access  Private
+ */
+export const magicSubtasks = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const userId = req.user._id; 
+    
+    const task = await Task.findById(taskId);
+    if (!task || task.deletedAt) {
+      return res.status(404).json({ success: false, message: "Task not found" });
+    }
+
+    const subtaskTitles = await AIService.generateSubtasks(
+        task.title, 
+        task.description || "" 
+    );
+
+    if (!subtaskTitles || subtaskTitles.length === 0) {
+        return res.status(200).json({ success: true, message: "AI did not generate any steps.", data: [] });
+    }
+
+    const newSubtasks = subtaskTitles.map(title => ({ title, isCompleted: false }));
+    
+    const updatedTask = await Task.findByIdAndUpdate(
+      taskId,
+      { 
+        $push: { subtasks: { $each: newSubtasks } } 
+      },
+      { new: true }
+    );
+
+    try {
+        await ActivityLog.create({
+            projectId: task.projectId,
+            userId: userId,
+            taskId: taskId,
+            action: "AI_SUGGESTION",
+            content: `generated ${newSubtasks.length} subtasks using AI for task "${task.title}"`
+        });
+    } catch (logError) {
+        console.error("AI Log Error:", logError.message);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "AI subtasks added successfully",
+      data: updatedTask.subtasks 
+    });
+
+  } catch (error) {
+    console.error("Controller Error (Magic Subtasks):", error.message);
     res.status(500).json({ success: false, message: error.message });
   }
 };

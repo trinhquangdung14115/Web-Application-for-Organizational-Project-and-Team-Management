@@ -11,6 +11,7 @@ import {
   toggleSubtask, // Imported new controller
   deleteSubtask,  // Imported new controller
   getTasksById,
+  magicSubtasks
 } from "../controllers/task.controller.js";
 import { verifyToken, checkRole } from "../middlewares/auth.js";
 import { checkProjectActive } from "../middlewares/archive.middleware.js";
@@ -69,7 +70,11 @@ router.patch("/tasks/:id", verifyToken, updateTaskStatus);
  */
 router.delete("/tasks/:id", verifyToken, checkRole("Admin", "Manager"), deleteTask);
 
-
-
+/**
+ * @route   POST /tasks/:taskId/magic-subtasks
+ * @desc    Generate subtasks via AI Service
+ * @access  Private
+ */
+router.post("/tasks/:taskId/magic-subtasks", verifyToken, magicSubtasks);
 
 export default router;

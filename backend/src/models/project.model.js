@@ -25,6 +25,12 @@ const projectSchema = new mongoose.Schema(
 		status: { type: String, enum: ["active", "archived"], default: "active" },
 		members: { type: [memberSchema], default: [] },
 		labels: { type: [labelSchema], default: [] },
+		inviteCode: {
+            type: String,
+            unique: true, 
+            sparse: true, 
+            select: false, 
+        },
 		meta: { type: Object, default: {} },
 		deletedAt: { type: Date, default: null },
 		deadline: { type: Date },
