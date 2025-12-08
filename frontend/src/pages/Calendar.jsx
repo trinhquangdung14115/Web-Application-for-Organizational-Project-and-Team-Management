@@ -1,212 +1,457 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
-    CalendarIcon, 
-    ChevronDownIcon, 
+    ChevronLeftIcon, 
+    ChevronRightIcon, 
     ClockIcon, 
-    BellIcon,
-    ArrowPathIcon,
-    CheckIcon,
-    ClipboardDocumentListIcon,
-    ExclamationTriangleIcon,
+    MapPinIcon,
+    PlusIcon,
+    XMarkIcon,
+    VideoCameraIcon,
+    CalendarIcon,
+    Bars3BottomLeftIcon,
+    BriefcaseIcon
 } from '@heroicons/react/24/outline'; 
+import { useOutletContext } from 'react-router-dom';
 
-import { 
-    ArrowPathIcon as ProgressSolid, 
-    CheckCircleIcon as DoneSolid, 
-    ClipboardDocumentListIcon as TotalSolid, 
-    ClockIcon as ClockSolid, 
-} from '@heroicons/react/24/solid';
 import { LoaderOverlay } from '../components/LoaderOverlay';
 import { ErrorState } from '../components/ErrorState';
-import { mockEventDays, mockCheckedInDays } from '../mocks/events';
-import { useOutletContext } from 'react-router-dom';
 import TaskSummary from '../components/TaskSummary';
 import { CalendarDayCell } from '../components/CalendarDayCell';
 
+const API_BASE_URL = 'http://localhost:4000/api';
+
+// --- HELPER FUNCTIONS ---
+const getHeaders = () => ({
+    'Content-Type': 'application/json',
+    'Authorization': `Bearer ${localStorage.getItem('token') || localStorage.getItem('accessToken')}`
+});
+
+const normalizeDate = (dateInput) => {
+    if (!dateInput) return '';
+    const d = new Date(dateInput);
+    if (isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+const formatTimeUS = (dateInput) => {
+    if (!dateInput) return '';
+    return new Date(dateInput).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+};
+
+const formatDateUS = (dateInput) => {
+    if (!dateInput) return '';
+    return new Date(dateInput).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+};
 
 
-// ---Calendar Panel---
-const CalendarPanel = ({ isLoading }) => {
-    const daysOfWeek = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-    // Giả lập lịch tháng 5/2025 
-    const dates = [
-        null, null, null, null, 1, 2, 3, 
-        4, 5, 6, 7, 8, 9, 10,
-        11, 12, 13, 14, 15, 16, 17, // 16 là ngày đang chọn
-        18, 19, 20, 21, 22, 23, 24,
-        25, 26, 27, 28, 29, 30, 31,
-    ];
-    
-    // Dữ liệu tĩnh: Ngày có sự kiện và ngày đã check-in
-    const eventsDays = new Set([...mockEventDays, ...mockCheckedInDays]);
+// --- MODAL XEM CHI TIẾT MEETING ---
+const MeetingDetailModal = ({ isOpen, onClose, meeting, projects }) => {
+    if (!isOpen || !meeting) return null;
+    const projectName = projects.find(p => p._id === meeting.projectId)?.name || 'Unknown Project';
 
     return (
-        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col flex-grow">
-            <div className="flex justify-between items-center mb-4">
-                <div className="flex items-center space-x-4 text-gray-700 font-semibold">
-                    <button className="text-xl text-gray-400 hover:text-gray-700 transition" aria-label="Previous Month">&lt;</button>
-                    <span>May 2025</span>
-                    <button className="text-xl text-gray-400 hover:text-gray-700 transition" aria-label="Next Month">&gt;</button>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-start mb-4">
+                    <h3 className="text-xl font-bold text-gray-900 leading-tight">{meeting.title}</h3>
+                    <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-full"><XMarkIcon className="w-6 h-6 text-gray-500"/></button>
                 </div>
-                <button 
-                    className="px-4 py-1 text-sm text-white font-medium rounded-lg hover:opacity-90 transition duration-150 border-2" 
-                    style={{ backgroundColor: 'var(--color-brand)', borderColor: 'var(--color-brand)' }}
-                >
-                    Today
-                </button>
-            </div>
-            
-            <div className="grid grid-cols-7 gap-y-1 text-center text-xs flex-grow">
-                {daysOfWeek.map((day) => (
-                    <div key={day} className="text-gray-500 font-medium pt-2 pb-1 text-xs md:text-sm">
-                        {day}
+                <div className="space-y-4">
+                    <div className="flex items-center gap-3 text-gray-700 bg-gray-50 p-2 rounded-lg">
+                        <BriefcaseIcon className="w-5 h-5 text-[var(--color-brand)]" />
+                        <span className="text-sm font-bold text-gray-800">{projectName}</span>
                     </div>
-                ))}
-                {dates.map((date, index) => {
-                    const isSelected = date === 16; 
-                    const isCheckedIn = mockCheckedInDays.includes(date);
-                    const hasEvent = eventsDays.has(date);
-                    return (
-                        // 1. Đổi tên component thành "CalendarDayCell"
-                        <CalendarDayCell 
-                            key={index}
-                            date={date}
-                            // 2. Truyền props
-                            isSelected={isSelected}
-                            isCheckedIn={isCheckedIn}
-                            hasEvent={hasEvent}
-                        />
-                    );
-                })} 
+                    <div className="flex items-center gap-3 text-gray-700">
+                        <ClockIcon className="w-5 h-5 text-gray-500" />
+                        <div>
+                            <p className="text-sm font-semibold">{formatDateUS(meeting.startTime)}</p>
+                            <p className="text-sm text-gray-500">
+                                {formatTimeUS(meeting.startTime)} - {formatTimeUS(meeting.endTime)}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3 text-gray-700">
+                        {meeting.location?.includes('http') ? <VideoCameraIcon className="w-5 h-5 text-blue-500"/> : <MapPinIcon className="w-5 h-5 text-red-500"/>}
+                        <span className="text-sm font-medium break-all">{meeting.location || 'No location provided'}</span>
+                    </div>
+                    {meeting.description && (
+                        <div className="flex gap-3 text-gray-700 border-t border-gray-100 pt-3">
+                            <Bars3BottomLeftIcon className="w-5 h-5 text-gray-400 flex-shrink-0" />
+                            <p className="text-sm text-gray-600 leading-relaxed">{meeting.description}</p>
+                        </div>
+                    )}
+                </div>
+                <div className="mt-6 flex justify-end">
+                    <button onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 text-sm font-medium transition">Close</button>
+                </div>
             </div>
         </div>
     );
 };
 
-// ---Event/Attendance Panel---
-const EventPanel = () => {
-    // State đơn giản cho UI check-in
-    const [isCheckedIn, setIsCheckedIn] = useState(false);
-    const [isCheckingIn, setIsCheckingIn] = useState(false);
-    const [checkInTime, setCheckInTime] = useState(null);
+// --- MODAL TẠO MEETING ---
+const CreateMeetingModal = ({ isOpen, onClose, projects, onSuccess }) => {
+    const [formData, setFormData] = useState({
+        title: '', projectId: '', startTime: '', endTime: '', location: '', description: ''
+    });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
 
-    const handleMockCheckIn = () => {
-        if (isCheckedIn || isCheckingIn) return;
+    useEffect(() => {
+        if (isOpen) {
+            setErrorMsg('');
+            if (projects.length > 0 && !formData.projectId) {
+                setFormData(prev => ({ ...prev, projectId: projects[0]._id }));
+            }
+        }
+    }, [isOpen, projects]);
 
-        setIsCheckingIn(true);
-        // Giả lập độ trễ ngắn cho UI
-        setTimeout(() => {
-            const timeString = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }); 
-            setCheckInTime(timeString);
-            setIsCheckedIn(true);
-            setIsCheckingIn(false);
-        }, 800);
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setErrorMsg('');
+        setIsSubmitting(true);
+        try {
+            const res = await fetch(`${API_BASE_URL}/projects/${formData.projectId}/meetings`, {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify(formData)
+            });
+            const data = await res.json();
+            if (!res.ok) throw new Error(data.message || "Failed to create meeting");
+            
+            onSuccess(); 
+            onClose();
+            setFormData(prev => ({ ...prev, title: '', location: '', description: '' }));
+        } catch (error) {
+            setErrorMsg(error.message);
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
-    let buttonText = "Check in";
-    let buttonStyle = { backgroundColor: 'var(--color-brand)' };
-    
-    if (isCheckingIn) {
-        buttonText = "Checking In...";
-        buttonStyle = { backgroundColor: 'var(--color-brand)' }; // Loading (màu cam)
-    } else if (isCheckedIn) {
-        buttonText = `Checked In (${checkInTime})`;
-        buttonStyle = { backgroundColor: '#10b981' }; // Success (màu xanh lá)
-    }
+    if (!isOpen) return null;
 
     return (
-        <div className="space-y-6 flex flex-col flex-grow">
-            {/* Attendance Today Card */}
-            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4">Attendance Today</h2>
-                <button 
-                    className="w-auto self-start mt-0.2 px-4 py-1.5 text-sm text-white font-medium rounded-lg hover:opacity-90 transition duration-150 disabled:opacity-70 disabled:cursor-not-allowed"
-                    onClick={handleMockCheckIn}
-                    disabled={isCheckedIn || isCheckingIn}
-                    style={buttonStyle}
-                >
-                    {buttonText}
-                </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm" onClick={onClose}>
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 animate-in fade-in zoom-in-95" onClick={e => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-bold text-gray-800">Schedule New Meeting</h3>
+                    <button onClick={onClose}><XMarkIcon className="w-5 h-5 text-gray-400 hover:text-gray-600"/></button>
+                </div>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Project</label>
+                        <select className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[var(--color-brand)] outline-none" value={formData.projectId} onChange={e => setFormData({...formData, projectId: e.target.value})} required>
+                            {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
+                        </select>
+                    </div>
+                    <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Meeting Title</label><input type="text" required className="w-full p-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-[var(--color-brand)] outline-none" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="e.g. Weekly Sync"/></div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Start Time</label><input type="datetime-local" required className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})}/></div>
+                        <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">End Time</label><input type="datetime-local" required className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none" value={formData.endTime} onChange={e => setFormData({...formData, endTime: e.target.value})}/></div>
+                    </div>
+                    <div><label className="block text-xs font-bold text-gray-500 uppercase mb-1">Location / Link</label><input type="text" className="w-full p-2.5 border border-gray-300 rounded-lg text-sm outline-none" value={formData.location} onChange={e => setFormData({...formData, location: e.target.value})} placeholder="Meeting Room or Zoom URL"/></div>
+                    {errorMsg && <p className="text-red-500 text-sm font-medium text-center">{errorMsg}</p>}
+                    <div className="pt-2 flex justify-end gap-3">
+                        <button type="button" onClick={onClose} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-medium text-sm">Cancel</button>
+                        <button type="submit" disabled={isSubmitting} className="px-6 py-2 text-white rounded-lg font-bold shadow-md hover:opacity-90 disabled:opacity-50 text-sm" style={{ backgroundColor: 'var(--color-brand)' }}>{isSubmitting ? 'Creating...' : 'Create Meeting'}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    );
+};
+
+// --- CALENDAR PANEL ---
+const CalendarPanel = ({ currentMonth, setCurrentMonth, selectedDate, onSelectDate, events }) => {
+    const daysOfWeek = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const getDaysInMonth = (date) => {
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const days = new Date(year, month + 1, 0).getDate();
+        const firstDay = new Date(year, month, 1).getDay();
+        const result = [];
+        for (let i = 0; i < firstDay; i++) result.push(null);
+        for (let i = 1; i <= days; i++) result.push(new Date(year, month, i));
+        return result;
+    };
+
+    const days = getDaysInMonth(currentMonth);
+    const eventDates = new Set(events.map(e => normalizeDate(e.startTime)));
+
+    const handlePrev = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
+    const handleNext = () => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1));
+    const handleToday = () => {
+        const today = new Date();
+        setCurrentMonth(today);
+        onSelectDate(today);
+    };
+
+    return (
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col h-full min-h-[600px]">
+            <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center gap-4 text-gray-800 font-bold text-xl">
+                    <button onClick={handlePrev} className="p-1.5 hover:bg-gray-100 rounded-full"><ChevronLeftIcon className="w-5 h-5"/></button>
+                    <span>{currentMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                    <button onClick={handleNext} className="p-1.5 hover:bg-gray-100 rounded-full"><ChevronRightIcon className="w-5 h-5"/></button>
+                </div>
+                <button onClick={handleToday} className="px-4 py-1.5 text-sm text-white font-bold rounded-lg shadow-sm hover:opacity-90" style={{ backgroundColor: 'var(--color-brand)' }}>Today</button>
+            </div>
+            <div className="grid grid-cols-7 gap-y-2 text-center flex-grow content-start">
+                {daysOfWeek.map(day => <div key={day} className="text-gray-400 text-xs font-bold uppercase mb-4">{day}</div>)}
+                {days.map((date, idx) => {
+                    if (!date) return <div key={`empty-${idx}`} />;
+                    const dateStr = normalizeDate(date);
+                    return (
+                        <div key={idx} onClick={() => onSelectDate(date)} className="cursor-pointer h-full">
+                            <CalendarDayCell 
+                                date={date.getDate()}
+                                isSelected={normalizeDate(date) === normalizeDate(selectedDate)}
+                                isCheckedIn={false} 
+                                hasEvent={eventDates.has(dateStr)} 
+                            />
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
+};
+
+// --- RIGHT PANEL ---
+const RightPanel = ({ selectedDate, dayEvents, myAttendance, onCheckInSuccess, onOpenCreateModal, onEventClick, canCreateMeeting }) => {
+    const [checkInStatus, setCheckInStatus] = useState(null); 
+    const [msg, setMsg] = useState('');
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+        setMsg('');
+        setError('');
+        setCheckInStatus(null);
+    }, [selectedDate]);
+
+    const selectedDateKey = normalizeDate(selectedDate);
+    const attendanceRecord = myAttendance.find(a => normalizeDate(a.checkInTime) === selectedDateKey);
+    const isToday = selectedDateKey === normalizeDate(new Date());
+
+    const handleCheckIn = async () => {
+        setCheckInStatus('loading');
+        setError('');
+        try {
+            const res = await fetch(`${API_BASE_URL}/attendance/checkin`, {
+                method: 'POST',
+                headers: getHeaders(),
+                body: JSON.stringify({ note: "Manual check-in" })
+            });
+            const data = await res.json();
+            
+            if (!res.ok) {
+                if (res.status === 409) {
+                    onCheckInSuccess(); 
+                } else {
+                    throw new Error(data.message);
+                }
+            } else {
+                setCheckInStatus('success');
+                onCheckInSuccess(); 
+            }
+        } catch (error) {
+            setCheckInStatus('error');
+            setError(error.message || "Connection error.");
+        }
+    };
+
+    return (
+        <div className="flex flex-col gap-6 h-full">
+            {/* CHECK-IN CARD */}
+            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100">
+                <div className="flex justify-between items-center mb-4">
+                    <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                        <ClockIcon className="w-6 h-6 text-[var(--color-brand)]"/> 
+                        Attendance Info
+                    </h2>
+                    <span className="text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">{formatDateUS(selectedDate)}</span>
+                </div>
+                
+                <div className="flex flex-col items-center py-4">
+                    {attendanceRecord ? (
+                         <div className="text-center animate-fade-in">
+                            <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-2">
+                                <MapPinIcon className="w-8 h-8" />
+                            </div>
+                            <p className="text-gray-600 text-sm">Checked in at</p>
+                            <p className="text-2xl font-bold text-green-600">{formatTimeUS(attendanceRecord.checkInTime)}</p>
+                         </div>
+                    ) : isToday ? (
+                        <>
+                            <button 
+                                onClick={handleCheckIn}
+                                disabled={checkInStatus === 'loading'}
+                                className="px-8 py-3 bg-[var(--color-brand)] text-white font-bold rounded-xl shadow-md hover:opacity-90 transition disabled:opacity-70"
+                                style={{ backgroundColor: 'var(--color-brand)' }}
+                            >
+                                {checkInStatus === 'loading' ? 'Processing...' : 'Check In Now'}
+                            </button>
+                            {error && <p className="text-red-500 text-xs mt-2">{error}</p>}
+                        </>
+                    ) : (
+                        <div className="text-center text-gray-400">
+                            <p className="text-sm">No attendance record for this day.</p>
+                        </div>
+                    )}
+                </div>
             </div>
 
-            {/* Events on Specific Day Card */}
-            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex flex-col flex-grow">
-                <h2 className="text-lg font-semibold text-gray-800 mb-4">Events on Friday, May 16, 2025</h2>
-                
-                <div className="flex flex-col items-center justify-center flex-grow text-center text-gray-500">
-                    {/* Calendar Icon */}
-                    <div className="mb-4 p-4 bg-gray-100 rounded-full">
-                        <CalendarIcon className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <p>No events scheduled for this day</p>
+            {/* SCHEDULE LIST */}
+            <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-100 flex-grow flex flex-col">
+                <div className="flex justify-between items-center mb-4 pb-3 border-b border-gray-100">
+                    <h2 className="text-lg font-bold text-gray-800">Events</h2>
+                    
+                    {/* CHỈ HIỆN NÚT NẾU CÓ QUYỀN TẠO MEETING (Admin/Manager) */}
+                    {canCreateMeeting && (
+                        <button onClick={onOpenCreateModal} className="p-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-full transition-colors" title="Create Meeting">
+                            <PlusIcon className="w-5 h-5" />
+                        </button>
+                    )}
+                </div>
+
+                <div className="flex-grow overflow-y-auto pr-2 custom-scrollbar space-y-3">
+                    {dayEvents.length > 0 ? dayEvents.map(evt => (
+                        <div key={evt._id} onClick={() => onEventClick(evt)} className="p-3 bg-gray-50 rounded-lg border-l-4 border-[var(--color-brand)] group hover:shadow-md transition-all cursor-pointer">
+                            <div className="flex justify-between items-start">
+                                <h4 className="font-bold text-gray-800 text-sm group-hover:text-[var(--color-brand)] transition-colors">{evt.title}</h4>
+                                <span className="text-xs font-mono text-gray-500 bg-white px-1.5 py-0.5 rounded border border-gray-200">
+                                    {formatTimeUS(evt.startTime)}
+                                </span>
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                                {evt.location?.includes('http') ? <VideoCameraIcon className="w-3.5 h-3.5"/> : <MapPinIcon className="w-3.5 h-3.5"/>}
+                                <span className="truncate max-w-[200px]">{evt.location || 'No location'}</span>
+                            </div>
+                        </div>
+                    )) : (
+                        <div className="h-full flex flex-col items-center justify-center text-gray-400">
+                            <CalendarIcon className="w-12 h-12 text-gray-200 mb-2" />
+                            <p className="text-sm">No meetings scheduled</p>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
     );
 };
 
-// ---Calendar Page Component---
+// --- MAIN PAGE ---
 const Calendar = () => {
     const { dynamicTasksSummary } = useOutletContext();
     const [isLoading, setIsLoading] = useState(true);
-    const [isError, setIsError] = useState(false);
-    React.useEffect(() => {
-        setIsLoading(true);
-        setIsError(false);
-        const timer = setTimeout(() => {
-            // Bản thành công 
+    
+    const [currentMonth, setCurrentMonth] = useState(new Date());
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [projects, setProjects] = useState([]);
+    const [allMeetings, setAllMeetings] = useState([]);
+    const [myAttendance, setMyAttendance] = useState([]);
+    const [userRole, setUserRole] = useState('Member'); // State để lưu role
+    
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [selectedMeeting, setSelectedMeeting] = useState(null);
+
+    const fetchData = useCallback(async () => {
+        try {
+            // Lấy user từ LocalStorage để check role
+            const userStr = localStorage.getItem('user');
+            if (userStr) {
+                const user = JSON.parse(userStr);
+                setUserRole(user.role);
+            }
+
+            const [projRes, attRes] = await Promise.all([
+                fetch(`${API_BASE_URL}/projects`, { headers: getHeaders() }),
+                fetch(`${API_BASE_URL}/attendance/me`, { headers: getHeaders() })
+            ]);
+
+            const projData = await projRes.json();
+            const attData = await attRes.json();
+
+            const projectList = projData.data || [];
+            setProjects(projectList);
+            setMyAttendance(attData.data || []);
+
+            if (projectList.length > 0) {
+                const meetingPromises = projectList.map(p => 
+                    fetch(`${API_BASE_URL}/projects/${p._id}/meetings`, { headers: getHeaders() })
+                        .then(r => r.json())
+                        .then(d => d.data || [])
+                        .catch(() => [])
+                );
+                const meetingsResults = await Promise.all(meetingPromises);
+                setAllMeetings(meetingsResults.flat());
+            }
             setIsLoading(false);
-
-            // Bản lỗi 
-            // setIsError(true);
-            // setIsLoading(false);
-
-        }, 1500); 
-        return () => clearTimeout(timer);
+        } catch (error) {
+            console.error("Fetch error:", error);
+            setIsLoading(false);
+        }
     }, []);
 
-    // 1. Trạng thái Loading
-    if (isLoading) {
-        return (
-            <div className="flex-1 p-8 bg-gray-50 min-h-screen font-sans flex items-center justify-center">
-                <LoaderOverlay />
-            </div>
-        );
-    }
-    
-    // 2. Trạng thái Error
-    if (isError) {
-        return (
-            <div className="flex-1 p-8 bg-gray-50 min-h-screen font-sans flex items-center justify-center">
-                <ErrorState 
-                    icon={<ExclamationTriangleIcon className="w-12 h-12 text-red-400" />}
-                    title="Could not load calendar"
-                    message="An error occurred while fetching data. Please try again later."
-                />
-            </div>
-        );
-    }
+    useEffect(() => { fetchData(); }, [fetchData]);
 
-    // 3. Trạng thái thành công (hiển thị nội dung)
+    const selectedDayEvents = allMeetings.filter(m => normalizeDate(m.startTime) === normalizeDate(selectedDate));
+    
+    // Kiểm tra quyền: Admin hoặc Manager được tạo
+    const canCreateMeeting = ['Admin', 'Manager'].includes(userRole);
+
+    if (isLoading) return <div className="flex-1 p-8 flex items-center justify-center"><LoaderOverlay /></div>;
+
     return (
-        <div className="flex-1 p-8 bg-gray-50 min-h-screen font-sans">
-            <TaskSummary summaryData={dynamicTasksSummary} />
-            {/* Main Content: Calendar and Events  */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch min-h-[550px]">
-                {/* Cột Trái: Calendar Panel */}
-                <div className="md:col-span-1 flex flex-col flex-grow"> 
+        <div className="flex-1 p-6 md:p-8 bg-gray-50 min-h-screen font-sans flex flex-col">
+            <div className="mb-6">
+                <TaskSummary summaryData={dynamicTasksSummary} />
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-grow items-stretch">
+                <div className="flex flex-col h-full"> 
                     <CalendarPanel 
-                        checkedInDaysList={mockCheckedInDays} 
-                        isLoading={false} 
+                        currentMonth={currentMonth}
+                        setCurrentMonth={setCurrentMonth}
+                        selectedDate={selectedDate}
+                        onSelectDate={setSelectedDate}
+                        events={allMeetings}
+                        attendance={myAttendance}
                     />
                 </div>
-                {/* Cột Phải: Event Panel  */}
-                <div className="md:col-span-2 flex flex-col flex-grow">
-                    <EventPanel />
+                <div className="flex flex-col h-full">
+                    <RightPanel 
+                        selectedDate={selectedDate}
+                        dayEvents={selectedDayEvents}
+                        myAttendance={myAttendance}
+                        onCheckInSuccess={fetchData} 
+                        onOpenCreateModal={() => setIsCreateModalOpen(true)}
+                        onEventClick={(evt) => setSelectedMeeting(evt)}
+                        projects={projects}
+                        canCreateMeeting={canCreateMeeting} // Truyền prop xuống
+                    />
                 </div>
             </div>
+
+            <CreateMeetingModal 
+                isOpen={isCreateModalOpen} 
+                onClose={() => setIsCreateModalOpen(false)}
+                projects={projects}
+                onSuccess={fetchData} 
+            />
+
+            <MeetingDetailModal 
+                isOpen={!!selectedMeeting}
+                onClose={() => setSelectedMeeting(null)}
+                meeting={selectedMeeting}
+                projects={projects}
+            />
         </div>
     );
-}
+};
 
 export default Calendar;

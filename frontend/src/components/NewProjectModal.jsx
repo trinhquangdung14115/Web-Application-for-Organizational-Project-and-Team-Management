@@ -43,18 +43,39 @@ const NewProjectModal = ({ isOpen, onClose, onAddProject }) => {
         e.preventDefault();
         
         const newErrors = {};
-        // Validate BẮT BUỘC cả Name, Manager, và Deadline
+        
+        // Validate các trường bắt buộc
         if (!name.trim()) newErrors.name = "Project Name is required.";
         if (!manager) newErrors.manager = "Please select a Manager.";
         if (!deadline) newErrors.deadline = "Deadline is required.";
+
+        // Validate Logic Ngày tháng 
+        if (deadline) {
+            const selectedDate = new Date(deadline);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const year = selectedDate.getFullYear();
+
+            // Điều kiện sai:
+            // 1. Không phải ngày hợp lệ (NaN)
+            // 2. Năm quá nhỏ (< 2000)
+            // 3. Năm quá lớn (> 2100) -> Chặn số 3222 ở đây
+            // 4. Ngày trong quá khứ (< today)
+            if (
+                isNaN(selectedDate.getTime()) || 
+                year < 2000 || 
+                year > 2100 || 
+                selectedDate < today
+            ) {
+                newErrors.deadline = "Invalid date.";
+            }
+        }
         
-        // Nếu có lỗi -> dừng lại và hiện lỗi
         if (Object.keys(newErrors).length > 0) {
             setErrors(newErrors);
             return;
         }
         
-        // Nếu OK -> Gửi dữ liệu đi
         onAddProject({ name, description, deadline, manager });
     };
 
@@ -76,7 +97,6 @@ const NewProjectModal = ({ isOpen, onClose, onAddProject }) => {
                     </div>
                     
                     <div>
-                        {/* Description là tùy chọn, không cần dấu * */}
                         <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
                         <textarea rows={3} className="w-full px-3 py-2 border border-gray-300 rounded-lg" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Enter description" />
                     </div>
@@ -93,6 +113,8 @@ const NewProjectModal = ({ isOpen, onClose, onAddProject }) => {
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Deadline <span className="text-red-500">*</span></label>
                             <input type="date" className={getInputClass('deadline')} value={deadline} onChange={(e) => setDeadline(e.target.value)} />
+                            
+                            {/* Hiển thị thông báo lỗi */}
                             {errors.deadline && <p className="text-red-500 text-xs mt-1">{errors.deadline}</p>}
                         </div>
                     </div>

@@ -1,7 +1,7 @@
 import { ArrowRight, Users, FolderKanban, BarChart3 } from 'lucide-react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import logoIcon from '../assets/images/logo.png';
-import logoText from '../assets/images/syncora.png';
+import logoText from '../assets/images/syncora-official.png';
 
 export default function HomePage() {
     const navigate = useNavigate();
@@ -57,7 +57,7 @@ export default function HomePage() {
             </p>
 
             <button 
-              onClick={() => navigate("/login")}
+              onClick={() => navigate("/pricing")}
               className="group px-8 py-4 bg-brand text-black rounded-lg  transition-all duration-300 inline-flex items-center gap-2 shadow-lg shadow-brand/50"
             >
               <span className="text-lg">Get Started</span>
@@ -134,7 +134,7 @@ export default function HomePage() {
             Join thousands of teams already using Syncora to streamline their workflow
           </p>
           <button 
-            onClick={() => navigate("/login")}
+            onClick={() => navigate("/pricing")}
             className="group px-8 py-4 bg-brand text-black rounded-lg transition-all duration-300 inline-flex items-center gap-2 shadow-lg shadow-brand/50"
           >
             <span className="text-lg">Get Started</span>

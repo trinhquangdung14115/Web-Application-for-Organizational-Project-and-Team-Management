@@ -7,7 +7,6 @@ import {
 import NotificationBell from './NotificationBell'; 
 import { useAuth } from '../services/AuthContext'; 
 
-const PRIMARY_COLOR = '#f35640';
 
 
 // === TÁCH HEADERICONS VÀ NHẬN PROPS ===
@@ -37,8 +36,8 @@ const HeaderIcons = ({   unreadCount, onLogout }) => {
                     <div 
                         className="relative w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm"
                         style={{ 
-                            backgroundColor: `${PRIMARY_COLOR}20`, 
-                            color: PRIMARY_COLOR                  
+                            backgroundColor: 'color-mix(in srgb, var(--color-brand) 12%, white)',
+                            color: 'var(--color-brand)'                  
                         }}
                     >
                         {initials}

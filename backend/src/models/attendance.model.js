@@ -10,7 +10,7 @@ const attendanceSchema = new mongoose.Schema(
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Project",
-      required: true,
+      required: false,
     },
     checkInTime: {
       type: Date,
@@ -36,6 +36,6 @@ const attendanceSchema = new mongoose.Schema(
 
 // Index to quickly find today's attendance for a user
 attendanceSchema.index({ userId: 1, checkInTime: 1 });
-attendanceSchema.index({ projectId: 1, checkInTime: 1 });
+//attendanceSchema.index({ projectId: 1, checkInTime: 1 });
 
 export default mongoose.model("Attendance", attendanceSchema);
