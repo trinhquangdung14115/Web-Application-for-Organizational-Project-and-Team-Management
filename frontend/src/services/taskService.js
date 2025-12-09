@@ -206,6 +206,21 @@ export const deleteSubtask = async (taskId, subtaskId) => {
   }
 };
 
+/**
+ * Gọi AI để gợi ý subtasks
+ * @param {string} taskId 
+ */
+export const generateAiSubtasks = async (taskId) => {
+  try {
+    // Gọi đúng route đã định nghĩa trong task.routes.js
+    const response = await axiosInstance.post(`/tasks/${taskId}/magic-subtasks`);
+    return response.data.data; // Trả về mảng subtask mới
+  } catch (error) {
+    console.error("Lỗi AI Subtask:", error);
+    throw error.response?.data || { error: { message: "Failed to generate subtasks" } };
+  }
+};
+
 export default {
   getTasksByProject,
   createTask,
@@ -222,4 +237,5 @@ export default {
   createSubtask,
   toggleSubtask,
   deleteSubtask,
+  generateAiSubtasks,
 };

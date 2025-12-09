@@ -71,6 +71,24 @@ router.patch("/tasks/:id", verifyToken, updateTaskStatus);
 router.delete("/tasks/:id", verifyToken, checkRole("Admin", "Manager"), deleteTask);
 
 /**
+ * @route   POST /tasks/:id/subtasks
+ * @desc    Create a subtask
+ */
+router.post("/tasks/:taskId/subtasks", verifyToken, createSubtask);
+
+/**
+ * @route   PATCH /tasks/:id/subtasks/:subtaskId/toggle
+ * @desc    Toggle subtask completion
+ */
+router.patch("/tasks/:taskId/subtasks/:subtaskId/toggle", verifyToken, toggleSubtask);
+
+/**
+ * @route   DELETE /tasks/:id/subtasks/:subtaskId
+ * @desc    Delete a subtask
+ */
+router.delete("/tasks/:taskId/subtasks/:subtaskId", verifyToken, deleteSubtask);
+
+/**
  * @route   POST /tasks/:taskId/magic-subtasks
  * @desc    Generate subtasks via AI Service
  * @access  Private
