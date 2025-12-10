@@ -11,7 +11,7 @@ export default function HomePage() {
       <div className="relative overflow-hidden">
         {/* Background decoration */}
         <div className="absolute inset-0 overflow-hidden">
-          <div className="absolute -top-40 -right-40 w-80 h-80 bg-brand rounded-full opacity-20 blur-3xl"></div>
+          <div className="absolute -top-40 -right-40 w-80 h-80 bg-[#f35640] rounded-full opacity-20 blur-3xl"></div>
           <div className="absolute top-60 -left-40 w-96 h-96 bg-orange-600 rounded-full opacity-10 blur-3xl"></div>
         </div>
 
@@ -29,11 +29,11 @@ export default function HomePage() {
             <img 
               src={logoText} 
               alt="Syncora Text" 
-              className="h-8 object-contain transition-transform group-hover:scale-105" 
+              className="h-8 pt-1 object-contain transition-transform group-hover:scale-105" 
             />
         </div>
           <button onClick={() => navigate("/login")}
-                  className="px-6 py-2 border border-brand text-brand rounded-lg hover:bg-brand hover:text-black transition-all duration-300">
+                  className="px-6 py-2 border border-[#f35640] text-[#f35640] rounded-lg hover:bg-[#f35640] hover:text-black transition-all duration-300">
             Sign In
           </button>
         </nav>
@@ -41,11 +41,11 @@ export default function HomePage() {
         {/* Hero Content */}
         <div className="relative z-10 container mx-auto px-6 pt-20 pb-32">
           <div className="max-w-4xl mx-auto text-center">
-            <div className="inline-block mb-6 px-4 py-2 bg-brand/10 border border-orange-500/20 rounded-full">
-              <span className="text-brand">Transform Your Workflow</span>
+            <div className="inline-block mb-6 px-4 py-2 bg-[#f35640]/10 border border-orange-500/20 rounded-full">
+              <span className="text-[#f35640]">Transform Your Workflow</span>
             </div>
             
-            <h1 className="text-6xl md:text-7xl mb-6 bg-gradient-to-r from-white via-orange-100 to-brand bg-clip-text text-transparent">
+            <h1 className="text-6xl md:text-7xl mb-6 bg-gradient-to-r from-white via-orange-100 to-[#f35640] bg-clip-text text-transparent">
               Manage Projects,
               <br />
               Empower Teams
@@ -74,9 +74,9 @@ export default function HomePage() {
       {/* Features Section */}
       <div className="relative z-10 container mx-auto px-6 py-20">
         <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-          <div className="p-8 bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-brand/50 transition-all duration-300">
-            <div className="w-12 h-12 bg-brand/10 rounded-lg flex items-center justify-center mb-4">
-              <Users className="w-6 h-6 text-brand" />
+          <div className="p-8 bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-[#f35640]/50 transition-all duration-300">
+            <div className="w-12 h-12 bg-[#f35640]/10 rounded-lg flex items-center justify-center mb-4">
+              <Users className="w-6 h-6 text-[#f35640]" />
             </div>
             <h3 className="text-xl mb-3">Team Collaboration</h3>
             <p className="text-gray-400">
@@ -84,9 +84,9 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="p-8 bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-brand/50 transition-all duration-300">
-            <div className="w-12 h-12 bg-brand/10 rounded-lg flex items-center justify-center mb-4">
-              <FolderKanban className="w-6 h-6 text-brand" />
+          <div className="p-8 bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-[#f35640]/50 transition-all duration-300">
+            <div className="w-12 h-12 bg-[#f35640]/10 rounded-lg flex items-center justify-center mb-4">
+              <FolderKanban className="w-6 h-6 text-[#f35640]" />
             </div>
             <h3 className="text-xl mb-3">Project Management</h3>
             <p className="text-gray-400">
@@ -94,9 +94,9 @@ export default function HomePage() {
             </p>
           </div>
 
-          <div className="p-8 bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-brand/50 transition-all duration-300">
-            <div className="w-12 h-12 bg-brand/10 rounded-lg flex items-center justify-center mb-4">
-              <BarChart3 className="w-6 h-6 text-brand" />
+          <div className="p-8 bg-zinc-900 rounded-2xl border border-zinc-800 hover:border-[#f35640]/50 transition-all duration-300">
+            <div className="w-12 h-12 bg-[#f35640]/10 rounded-lg flex items-center justify-center mb-4">
+              <BarChart3 className="w-6 h-6 text-[#f35640]" />
             </div>
             <h3 className="text-xl mb-3">Analytics & Insights</h3>
             <p className="text-gray-400">
@@ -111,15 +111,15 @@ export default function HomePage() {
         <div className="max-w-4xl mx-auto bg-gradient-to-r from-orange-500/10 to-orange-600/5 border border-orange-500/20 rounded-3xl p-12">
           <div className="grid md:grid-cols-3 gap-12 text-center">
             <div>
-              <div className="text-4xl text-brand mb-2">10k+</div>
+              <div className="text-4xl text-[#f35640] mb-2">10k+</div>
               <div className="text-gray-400">Active Teams</div>
             </div>
             <div>
-              <div className="text-4xl text-brand mb-2">500k+</div>
+              <div className="text-4xl text-[#f35640] mb-2">500k+</div>
               <div className="text-gray-400">Projects Managed</div>
             </div>
             <div>
-              <div className="text-4xl text-brand mb-2">99.9%</div>
+              <div className="text-4xl text-[#f35640] mb-2">99.9%</div>
               <div className="text-gray-400">Uptime</div>
             </div>
           </div>
