@@ -3,6 +3,7 @@
     "@google/generative-ai": "^0.24.1",
     "@hello-pangea/dnd": "^16.5.1",
     "@react-oauth/google": "^0.12.2",
+    "react-confetti": "^6.4.0",
     "tailwindcss": "^4.1.16"
   }
 }

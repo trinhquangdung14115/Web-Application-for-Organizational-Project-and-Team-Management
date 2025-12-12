@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import User from "../models/user.model.js";
+import OrganizationMember from "../models/organizationMember.model.js";
 
 // GET /users (admin only)
 export const listUsers = async (req, res) => {
@@ -19,14 +20,35 @@ export const searchUsers = async (req, res) => {
       return res.status(400).json({ success: false, error: "ValidationError", message: "Query must be at least 2 characters" });
     }
 
+    // Get current user's organization
+    const currentUser = await User.findById(req.user._id);
+    if (!currentUser || !currentUser.currentOrganizationId) {
+      return res.status(400).json({
+        success: false,
+        error: "ValidationError",
+        message: "You are not currently in any organization",
+      });
+    }
+
+    // Find all users in the same organization
+    const orgMembers = await OrganizationMember.find({
+      organizationId: currentUser.currentOrganizationId,
+      deletedAt: null,
+      status: "ACTIVE",
+    }).select("userId");
+
+    const userIdsInOrg = orgMembers.map((m) => m.userId);
+
+    // Search users within the organization
     const users = await User.find({
+      _id: { $in: userIdsInOrg },
       deletedAt: null,
       $or: [
         { name: { $regex: q, $options: "i" } },
         { email: { $regex: q, $options: "i" } }
       ]
     })
-      .select("name email role status")
+      .select("name email role status avatar")
       .limit(20);
 
     res.json({ success: true, count: users.length, data: users });

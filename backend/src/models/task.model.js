@@ -42,7 +42,8 @@ const taskSchema = new mongoose.Schema(
       required: false, 
     },
     labels: [{ 
-    type: String 
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Label"
     }],
     estimateHours: { 
       type: Number, 

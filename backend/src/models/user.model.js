@@ -31,9 +31,29 @@ const userSchema = new mongoose.Schema(
       default: "ACTIVE",
       index: true,
     },
+    // Organization fields
+    currentOrganizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      default: null,
+    },
+    organizations: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Organization",
+      },
+    ],
     deletedAt: {
       type: Date,
       default: null,
+    },
+    resetPasswordToken: {
+      type: String,
+      select: false,
+    },
+    resetPasswordExpires: {
+      type: Date,
+      select: false,
     },
   },
   { timestamps: true }

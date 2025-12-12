@@ -2,6 +2,12 @@ import mongoose from "mongoose";
 
 const attendanceSchema = new mongoose.Schema(
   {
+    organizationId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Organization",
+      required: true,
+      index: true,
+    },
     userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -39,3 +45,4 @@ attendanceSchema.index({ userId: 1, checkInTime: 1 });
 //attendanceSchema.index({ projectId: 1, checkInTime: 1 });
 
 export default mongoose.model("Attendance", attendanceSchema);
+
