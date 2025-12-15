@@ -5,11 +5,153 @@ import { formatDistanceToNow } from 'date-fns';
 import axiosInstance from '../services/api';
 import { getProjects } from "../services/projectService"; // 🔵 Thêm
 import TaskSummary from '../components/TaskSummary';
-import { ChevronDownIcon } from '@heroicons/react/24/outline';
+import { ChevronDownIcon, SparklesIcon,XMarkIcon, 
+  LightBulbIcon, 
+  CalendarIcon, 
+  CheckCircleIcon,
+  CheckCircleIcon as DoneIcon,
+  ExclamationTriangleIcon, FolderIcon } from '@heroicons/react/24/outline';
+
+// ==================================================================================
+// 🔵 AI DAILY WIDGET COMPONENT
+// ==================================================================================
+const AIDailyWidget = ({ onClose }) => {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchDailyBrief = async () => {
+      try {
+        setLoading(true);
+        // Gọi Mock API
+        const response = await axiosInstance.get('/ai/daily-brief');
+        if (response.data && response.data.success) {
+          setData(response.data.data);
+        } else {
+          setError("Không thể tải dữ liệu.");
+        }
+      } catch (err) {
+        console.error("AI Brief Error:", err);
+        setError("Lỗi kết nối đến AI Service.");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDailyBrief();
+    }, []);
+    return (
+     <div className="fixed bottom-24 right-6 z-50 w-full max-w-sm bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col max-h-[70vh] animate-in slide-in-from-bottom-5 fade-in duration-200 origin-bottom-right">
+      
+        
+        {/* Header */}
+        <div className="bg-gradient-to-r from-[#3b064d] to-[#f35640] p-4 flex justify-between items-center text-white shrink-0 shadow-md">
+          <div className="flex items-center gap-2">
+            <SparklesIcon className="w-5 h-5 animate-pulse text-yellow-300" />
+            <h3 className="font-bold text-lg tracking-wide">Today's Work</h3>
+          </div>
+          
+           
+        </div>
+
+        {/* Content Area */}
+        <div className="p-6 overflow-y-auto custom-scrollbar bg-gray-50/50 h-full">
+          {loading ? (
+            // --- SKELETON LOADING UI ---
+            <div className="space-y-5 animate-pulse">
+              <div className="h-20 bg-gray-200 rounded-xl w-full"></div>
+              <div className="space-y-3">
+                <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                <div className="h-16 bg-gray-200 rounded-lg w-full"></div>
+                <div className="h-16 bg-gray-200 rounded-lg w-full"></div>
+              </div>
+            </div>
+          ) : error ? (
+            <div className="text-center text-red-500 py-8">
+              <ExclamationTriangleIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
+              <p>{error}</p>
+              <button onClick={onClose} className="mt-4 text-sm font-semibold underline text-gray-500">Close</button>
+            </div>
+          ) : (
+            // --- MAIN CONTENT ---
+            <div className="space-y-6">
+              
+              {/* Greeting */}
+              <div className="bg-white p-5 rounded-xl border border-indigo-100 shadow-sm relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-1 h-full bg-[#f35640]"></div>
+                <p className="text-gray-800 font-medium leading-relaxed text-base">
+                  {data.greeting}
+                </p>
+              </div>
+
+              {/* Task Highlights */}
+              {data.task_highlights && data.task_highlights.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <LightBulbIcon className="w-4 h-4 text-yellow-500" /> Focus Today
+                  </h4>
+                  <div className="space-y-3">
+                    {data.task_highlights.map((task, idx) => (
+                      <div key={idx} className="bg-white p-3 rounded-lg border border-gray-200 hover:border-indigo-300 transition-colors shadow-sm group">
+                        <div className="flex gap-3 items-start">
+                          <CheckCircleIcon className="w-5 h-5 text-gray-400 mt-0.5 group-hover:text-indigo-600 transition-colors shrink-0" />
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <p className="text-sm font-bold text-gray-800">{task.title}</p>
+                              {task.label && (
+                                <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full font-medium border border-gray-200">
+                                  {task.label}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1 italic leading-relaxed">{task.summary}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Meetings */}
+              {data.upcoming_meetings && data.upcoming_meetings.length > 0 && (
+                <div>
+                  <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                    <CalendarIcon className="w-4 h-4 text-purple-500" /> Meetings
+                  </h4>
+                  <div className="space-y-2">
+                    {data.upcoming_meetings.map((meet, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 shadow-sm">
+                        <span className="text-sm font-medium text-gray-700">{meet.title}</span>
+                        <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100">
+                          {meet.time}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Encouragement */}
+              <div className="text-center pt-4 border-t border-gray-200 mt-2">
+                <p className="text-sm text-gray-500 italic">"{data.encouragement}"</p>
+              </div>
+
+            </div>
+          )}
+        </div>
+      </div>
+    
+  );
+};
+
 
 const HomePage = () => {
 
   const { dynamicTasksSummary } = useOutletContext();
+
+
 
   // ----------------------------------------------------------
   // 🔵 STATE THÊM MỚI
@@ -21,6 +163,7 @@ const HomePage = () => {
   const [stats, setStats] = useState(null);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showAIBrief, setShowAIBrief] = useState(false);
 
   // ----------------------------------------------------------
   // 🔵 LOAD DANH SÁCH PROJECTS
@@ -77,6 +220,8 @@ const HomePage = () => {
     fetchData();
   }, [currentProjectId]);
   // ----------------------------------------------------------
+
+
 
   // --- CONFIG HELPER CHO CHART & COLOR ---
   const getStatusConfig = (status) => {
@@ -165,6 +310,7 @@ useEffect(() => {
       }]
     };
   }
+  
 
   // Đọc đúng field (sau khi đã lưu stats = summaryRes.data.data)
   const data = [
@@ -204,17 +350,22 @@ useEffect(() => {
       }
     ]
   };
+  
 };
+
 
   return (
     <div className="p-6 space-y-6">
 
       
       {/* Filter + Export */}
+      
       <div className="flex items-center justify-end gap-3">
+       
         <div className='relative'>
+            <FolderIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
          <select
-          className="border border-gray-300 px-2 py-2 rounded-lg appearance-none cursor-pointer"
+          className="border border-gray-300 pl-9 px-2 py-2 rounded-lg appearance-none cursor-pointer"
           value={currentProjectId || ""}
           onChange={(e) => setCurrentProjectId(e.target.value)}
         >
@@ -331,6 +482,24 @@ useEffect(() => {
           )}
         </div>
       </div>
+      {/* 🔵 AI Widget */}
+      {showAIBrief && (
+        <AIDailyWidget onClose={() => setShowAIBrief(false)} />
+      )}
+
+      {/* Floating Action Button */}
+      <button
+        onClick={() => setShowAIBrief(!showAIBrief)}
+        className="fixed bottom-6 right-6 z-50 p-5 bg-gradient-to-r from-[#3b064d] to-[#f35640] text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 group ring-4 ring-white/50"
+        title="AI Daily Brief"
+      >
+        {showAIBrief ? (
+             <XMarkIcon className="w-6 h-6" />
+        ) : (
+             <SparklesIcon className="w-6 h-6 text-yellow-300 group-hover:animate-pulse" />
+        )}
+      </button>
+
 
     </div>
   );

@@ -58,7 +58,7 @@ export default function HomePage() {
 
             <button 
               onClick={() => navigate("/pricing")}
-              className="group px-8 py-4 bg-brand text-black rounded-lg  transition-all duration-300 inline-flex items-center gap-2 shadow-lg shadow-brand/50"
+              className="group px-8 py-4 bg-[#f35640] text-black rounded-lg  transition-all duration-300 inline-flex items-center gap-2 shadow-lg shadow-brand/50"
             >
               <span className="text-lg">Get Started</span>
               <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
@@ -135,7 +135,7 @@ export default function HomePage() {
           </p>
           <button 
             onClick={() => navigate("/pricing")}
-            className="group px-8 py-4 bg-brand text-black rounded-lg transition-all duration-300 inline-flex items-center gap-2 shadow-lg shadow-brand/50"
+            className="group px-8 py-4 bg-[#f35640] text-black rounded-lg transition-all duration-300 inline-flex items-center gap-2 shadow-lg shadow-brand/50"
           >
             <span className="text-lg">Get Started</span>
             <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
