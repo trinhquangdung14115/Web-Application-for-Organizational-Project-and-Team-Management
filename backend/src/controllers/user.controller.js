@@ -25,7 +25,7 @@ export const listUsers = async (req, res) => {
 
     // 4. Thực thi query
     const users = await User.find(query)
-      .select("name email role status avatar createdAt updatedAt")
+      .select("name email role status avatar createdAt updatedAt organizations currentOrganizationId")
       .sort({ createdAt: -1 });
 
     res.json({ success: true, count: users.length, data: users });
@@ -69,7 +69,7 @@ export const searchUsers = async (req, res) => {
         { email: { $regex: q, $options: "i" } }
       ]
     })
-      .select("name email role status avatar")
+      .select("name email role status avatar organizations currentOrganizationId")
       .limit(20);
 
     res.json({ success: true, count: users.length, data: users });

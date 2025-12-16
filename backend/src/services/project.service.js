@@ -69,6 +69,7 @@ export const createProject = async (projectData, creatorId, currentOrganizationI
     await ProjectMember.create([{
       projectId: project._id,
       userId: creatorId,
+      organizationId: currentOrganizationId,
       roleInProject: "Admin",
       status: "ACTIVE"
     }], { session });
@@ -587,8 +588,6 @@ export const getProjectMembers = async (projectId, currentOrganizationId) => {
   if (!project) {
     throw new Error('PROJECT_NOT_FOUND');
   }
-
-  const ProjectMember = mongoose.model('ProjectMember');
   
   const members = await ProjectMember.find({ projectId })
     .populate('userId', 'name email avatar');
