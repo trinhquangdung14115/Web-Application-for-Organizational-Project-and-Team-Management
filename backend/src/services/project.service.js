@@ -6,6 +6,7 @@
 import mongoose from "mongoose";
 import Project from "../models/project.model.js";
 import ProjectMember from "../models/projectMember.model.js";
+import OrganizationMember from "../models/organizationMember.model.js";
 import User from "../models/user.model.js";
 import Task from "../models/task.model.js";
 import ActivityLog from "../models/activityLog.model.js";
@@ -69,7 +70,6 @@ export const createProject = async (projectData, creatorId, currentOrganizationI
     await ProjectMember.create([{
       projectId: project._id,
       userId: creatorId,
-      organizationId: currentOrganizationId,
       roleInProject: "Admin",
       status: "ACTIVE"
     }], { session });
@@ -768,15 +768,12 @@ export const joinProjectByCode = async (inviteCode, userId, currentOrganizationI
     throw new Error('INVALID_INVITE_CODE');
   }
 
-  if (!currentOrganizationId) {
-    throw new Error('ORGANIZATION_REQUIRED');
-  }
-
+  
   const normalizedCode = inviteCode.toUpperCase().trim();
 
   const project = await Project.findOne({ 
     inviteCode: normalizedCode,
-    organizationId: currentOrganizationId,
+    // organizationId: currentOrganizationId, Bỏ check tạm vì vừa vào đâu thể có id dc
     deletedAt: null 
   });
   
@@ -784,27 +781,50 @@ export const joinProjectByCode = async (inviteCode, userId, currentOrganizationI
     throw new Error('INVALID_OR_EXPIRED_CODE');
   }
 
-  // Check if already a member in ProjectMember table
-  const existingMember = await ProjectMember.findOne({
+  const targetOrgId = project.organizationId;
+  const OrganizationMemberModel = mongoose.model("OrganizationMember");
+
+  const existingOrgMember = await OrganizationMemberModel.findOne({
+    organizationId: targetOrgId,
+    userId: userId
+  });
+
+ if (!existingOrgMember) {
+    await OrganizationMemberModel.create({
+      organizationId: targetOrgId,
+      userId: userId,
+      roleInOrganization: "ORG_MEMBER",
+      status: "ACTIVE"
+    });
+
+    // Cập nhật currentOrg cho User để lần sau vào thẳng Dashboard
+    await User.findByIdAndUpdate(userId, {
+      $addToSet: { organizations: targetOrgId },
+      currentOrganizationId: targetOrgId
+    });
+  }
+
+  const ProjectMemberModel = mongoose.model("ProjectMember");
+  
+  const existingMember = await ProjectMemberModel.findOne({
     projectId: project._id,
     userId
   });
 
   if (existingMember) {
-    if (existingMember.status === 'PENDING') {
-      throw new Error('ALREADY_REQUESTED');
-    }
+    if (existingMember.status === 'PENDING') throw new Error('ALREADY_REQUESTED');
     throw new Error('ALREADY_MEMBER');
   }
 
-  // Add user as member in ProjectMember table
-  await ProjectMember.create({
+  // 4. Add vào Project
+  await ProjectMemberModel.create({
     projectId: project._id,
     userId,
+    organizationId: targetOrgId, // Lưu đúng Org ID
     roleInProject: "Member",
     status: "ACTIVE"
   });
-
+  
   // Log activity
   try {
     await ActivityLog.create({

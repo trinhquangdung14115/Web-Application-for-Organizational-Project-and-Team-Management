@@ -568,10 +568,10 @@ export const joinProjectByCode = async (req, res) => {
 
     const { inviteCode } = req.body;
     const userId = req.user._id;
-    const currentOrgId = req.user.currentOrganizationId;
+    //const currentOrgId = req.user.currentOrganizationId;
 
     // 2. Call service
-    const projectId = await projectService.joinProjectByCode(inviteCode, userId, currentOrgId);
+    const projectId = await projectService.joinProjectByCode(inviteCode, userId, null);
 
     res.json({ 
       success: true, 
