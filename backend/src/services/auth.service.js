@@ -10,6 +10,7 @@ import { signToken } from "../utils/jwt.js";
 import crypto from "crypto";
 import { sendPasswordResetEmail, sendWelcomeEmail } from "./email.service.js";
 import { OAuth2Client } from "google-auth-library";
+import bcrypt from "bcrypt";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -28,7 +29,12 @@ export const createUser = async (name, email, password) => {
   const role = count === 0 ? "Admin" : "Member";
 
   // Create user
-  const user = await User.create({ name, email, password, role });
+    let user;
+  if (session) {
+    [user] = await User.create([{ name, email, password, role }], { session });
+  } else {
+    user = await User.create({ name, email, password, role });
+  }
 
   // Generate token (no organizationId for first user/admin)
   const token = signToken({ 
@@ -319,6 +325,54 @@ export const switchOrganization = async (userId, organizationId) => {
     },
   };
 };
+
+/**
+ * Create user WITH SESSION (for transaction)
+ */
+export async function createUserWithSession(name, email, password, session) {
+  // Check if email exists
+  const existingUser = await User.findOne({ email }).session(session);
+  if (existingUser) {
+    throw new Error("EMAIL_EXISTS");
+  }
+
+  // Hash password
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  // Create user with session
+  const [user] = await User.create([{
+    name,
+    email,
+    password: hashedPassword,
+    role: "Member", // Default, will be updated to Admin if creating org
+    status: "ACTIVE",
+  }], { session });
+
+  // Generate token (temporary, will be regenerated with orgId later)
+  const token = signToken({ 
+    sub: user._id.toString(),
+    email: user.email,
+    role: user.role,
+    organizationId: null
+  });
+
+  return {
+    token,
+    user: {
+      id: user._id,
+      _id: user._id, //  Both id and _id for compatibility
+      name: user.name,
+      email: user.email,
+      avatar: user.avatar,
+      phoneNumber: user.phoneNumber,
+      role: user.role,
+      status: user.status,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
+    },
+  };
+}
+
 
 /**
  * Helper: Convert user to public format

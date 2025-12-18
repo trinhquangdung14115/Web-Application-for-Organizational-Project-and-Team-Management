@@ -761,7 +761,7 @@ export const resetInviteCode = async (projectId, currentOrganizationId) => {
 };
 
 /**
- * Join project using invite code
+ * Join project using invite code - WITH TRANSACTION & ROLE FIX
  */
 export const joinProjectByCode = async (inviteCode, userId, currentOrganizationId) => {
   if (!inviteCode || typeof inviteCode !== 'string') {
@@ -770,75 +770,132 @@ export const joinProjectByCode = async (inviteCode, userId, currentOrganizationI
 
   const normalizedCode = inviteCode.toUpperCase().trim();
 
-  // 1. Tìm Project bằng Code 
-  const project = await Project.findOne({ 
-    inviteCode: normalizedCode,
-    deletedAt: null 
-  });
+  //  START SESSION
+  const session = await mongoose.startSession();
   
-  if (!project) {
-    throw new Error('INVALID_OR_EXPIRED_CODE');
-  }
-
-  const targetOrgId = project.organizationId;
-
-  // 2. Check & Add Organization Member 
-  const existingOrgMember = await OrganizationMember.findOne({
-    organizationId: targetOrgId,
-    userId: userId
-  });
-
- if (!existingOrgMember) {
-    await OrganizationMember.create({
-      organizationId: targetOrgId,
-      userId: userId,
-      roleInOrganization: "ORG_MEMBER",
-      status: "ACTIVE"
-    });
-
-    // 3. Cập nhật User: 
-    await User.findByIdAndUpdate(userId, {
-      $addToSet: { organizations: targetOrgId },
-      currentOrganizationId: targetOrgId,
-      role: "Member" 
-    });
-  } else {
-    // Nếu đã là member Org rồi thì chỉ cần switch sang Org đó
-    await User.findByIdAndUpdate(userId, {
-        currentOrganizationId: targetOrgId
-    });
-  }
-
-  // 4. Check & Add Project Member 
-  const existingMember = await ProjectMember.findOne({
-    projectId: project._id,
-    userId
-  });
-
-  if (existingMember) {
-    if (existingMember.status === 'PENDING') throw new Error('ALREADY_REQUESTED');
-    throw new Error('ALREADY_MEMBER');
-  }
-
-  await ProjectMember.create({
-    projectId: project._id,
-    userId,
-    organizationId: targetOrgId,
-    roleInProject: "Member",
-    status: "ACTIVE"
-  });
-  
-  // 5. Log activity
   try {
-    await ActivityLog.create({
+    //  START TRANSACTION
+    session.startTransaction();
+
+    // 1. Tìm Project bằng Code (WITH SESSION)
+    const project = await Project.findOne({ 
+      inviteCode: normalizedCode,
+      deletedAt: null 
+    }).session(session);
+    
+    if (!project) {
+      await session.abortTransaction();
+      throw new Error('INVALID_OR_EXPIRED_CODE');
+    }
+
+    // VALIDATE: Project đã bị archive
+    if (project.isArchived) {
+      await session.abortTransaction();
+      throw new Error('PROJECT_ARCHIVED');
+    }
+
+    //  VALIDATE: Project status inactive
+    if (project.status === 'archived' || project.status === 'inactive') {
+      await session.abortTransaction();
+      throw new Error('PROJECT_ARCHIVED');
+    }
+
+    const targetOrgId = project.organizationId;
+
+    // 2.  CHECK EXISTING ORGANIZATION MEMBER 
+    const existingOrgMember = await OrganizationMember.findOne({
+      organizationId: targetOrgId,
+      userId: userId
+    }).session(session);
+
+    // FIX ROLE LOGIC: Nếu đã là member của Org, KHÔNG CẬP NHẬT ROLE
+    if (!existingOrgMember) {
+      //  Case 1: User CHƯA thuộc Org này → Add vào Org với role ORG_MEMBER
+      await OrganizationMember.create([{
+        organizationId: targetOrgId,
+        userId: userId,
+        roleInOrganization: "ORG_MEMBER",
+        status: "ACTIVE"
+      }], { session });
+
+      //  Cập nhật User: Add Org + Set role = Member (vì là member mới)
+      await User.findByIdAndUpdate(
+        userId, 
+        {
+          $addToSet: { organizations: targetOrgId },
+          currentOrganizationId: targetOrgId,
+          role: "Member" //  CHỈ set role khi là member MỚI
+        },
+        { session }
+      );
+    } else {
+      //  Case 2: User ĐÃ thuộc Org này → CHỈ switch currentOrg, KHÔNG ĐỔI ROLE
+      await User.findByIdAndUpdate(
+        userId, 
+        {
+          currentOrganizationId: targetOrgId
+          //  KHÔNG CẬP NHẬT role - GIỮ NGUYÊN role hiện tại (Admin/Manager/Member)
+        },
+        { session }
+      );
+    }
+
+    // 3. Check & Add Project Member
+    const existingProjectMember = await ProjectMember.findOne({
       projectId: project._id,
-      userId: userId,
-      action: "JOIN_PROJECT",
-      content: `joined project "${project.name}" via invite code.`
-    });
-  } catch (e) {
-    console.error("Logging failed:", e.message);
+      userId
+    }).session(session);
+
+    if (existingProjectMember) {
+      await session.abortTransaction();
+      
+      if (existingProjectMember.status === 'PENDING') {
+        throw new Error('ALREADY_REQUESTED');
+      }
+      throw new Error('ALREADY_MEMBER');
+    }
+
+    //  Add to ProjectMember
+    await ProjectMember.create([{
+      projectId: project._id,
+      userId,
+      organizationId: targetOrgId,
+      roleInProject: "Member", // Role trong project (khác với role hệ thống)
+      status: "ACTIVE"
+    }], { session });
+    
+    // 4.  Log activity (WITH SESSION)
+    try {
+      await ActivityLog.create([{
+        projectId: project._id,
+        userId: userId,
+        organizationId: targetOrgId,
+        action: "JOIN_PROJECT",
+        entityType: "ProjectMember",
+        entityId: userId,
+        description: `joined project "${project.name}" via invite code`,
+        metadata: {
+          inviteCode: normalizedCode,
+          projectName: project.name,
+          isNewOrgMember: !existingOrgMember // Track if this is a new org member
+        }
+      }], { session });
+    } catch (e) {
+      console.error("Activity logging failed:", e.message);
+      // Don't abort transaction for logging failure
+    }
+    
+    //  COMMIT TRANSACTION
+    await session.commitTransaction();
+    
+    return project._id;
+
+  } catch (error) {
+    //  ROLLBACK on error
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    // CLEANUP session
+    session.endSession();
   }
-  
-  return project._id;
 };
