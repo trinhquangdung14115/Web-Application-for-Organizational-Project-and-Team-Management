@@ -24,7 +24,7 @@ const SignUpPage = () => {
   };
 
   const handlePostSignupRedirect = async (token) => {
-    // Xử lý Payment (Gói Admin)
+    // 1. Xử lý Payment (Nếu user chọn gói Admin từ trang Pricing)
     if (location.state?.from === 'pricing' && location.state?.plan === 'Admin') {
         try {
             const response = await fetch(`${API_BASE_URL}/payment/session`, { 
@@ -39,35 +39,11 @@ const SignUpPage = () => {
         } catch (error) { console.error("Payment error:", error); }
     }
 
-    // Xử lý Join Project
+    // 2. Xử lý Join Project
     if (location.state?.action === 'join' && location.state?.code) {
-        try {
-            console.log("Auto joining project after signup...");
-            const res = await fetch(`${API_BASE_URL}/projects/join`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({ inviteCode: location.state.code })
-            });
-            const data = await res.json();
-            
-            if (res.ok) {
-                // Thành công -> Về Home
-                navigate('/home');
-                return;
-            } else {
-                console.error("Auto join failed:", data.message);
-                // Vẫn về Home nhưng có thể user sẽ thấy mình chưa có project
-                navigate('/home');
-            }
-        } catch (error) {
-            console.error("Auto join error:", error);
-            navigate('/home');
-        }
+        navigate('/home');
     } else {
-        // Mặc định về Pricing 
+        // Mặc định về Pricing nếu không có action gì đặc biệt
         navigate('/pricing');
     }
   };
@@ -93,9 +69,13 @@ const SignUpPage = () => {
     try {
       setIsLoading(true);
       const name = `${formData.firstName} ${formData.lastName}`.trim();
-      await signup(name, formData.email, formData.password);
       
-      // Auto login
+      const inviteCode = location.state?.code || null;
+      
+      // Truyền inviteCode vào hàm signup để Backend xử lý
+      await signup(name, formData.email, formData.password, inviteCode);
+      
+      // Auto login ngay sau khi đăng ký thành công
       const res = await login(formData.email, formData.password);
       const user = res.data?.user || res.user; 
       const token = res.data?.token || res.token;
@@ -107,7 +87,8 @@ const SignUpPage = () => {
           navigate('/login');
       }
     } catch (err) {
-      setError(err.error?.message || 'Signup failed.');
+      console.error(err);
+      setError(err.error?.message || err.message || 'Signup failed.');
     } finally {
       setIsLoading(false);
     }

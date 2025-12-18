@@ -1,22 +1,26 @@
 import axiosInstance from "./api";
 
-// Đăng ký người dùng mới
-export const signup = async (name, email, password) => {
+export const signup = async (name, email, password, inviteCode = null) => {
   try {
     const response = await axiosInstance.post("/auth/signup", {
       name,
       email,
       password,
+      inviteCode, 
     });
-    if (response.data.token) {
-      localStorage.setItem("token", response.data.token);
-      localStorage.setItem("user", JSON.stringify(response.data.user));
+
+    if (response.data?.data?.token) {
+      const { token, user } = response.data.data;
+      
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+      
       // Thêm token vào header cho các request sau
-      axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${response.data.token}`;
+      axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     }
     return response.data;
   } catch (error) {
-    throw error.response?.data || { error: { message: "Login failed. Please try again!" } };
+    throw error.response?.data || { error: { message: "Signup failed. Please try again!" } };
   }
 };
 
@@ -27,11 +31,15 @@ export const login = async (email, password) => {
       email,
       password,
     });
-    if (response.data.token) {
-      localStorage.setItem("token", response.data.token);
-      localStorage.setItem("user", JSON.stringify(response.data.user));
+
+    if (response.data?.data?.token) {
+      const { token, user } = response.data.data;
+
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user));
+      
       // Thêm token vào header cho các request sau
-      axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${response.data.token}`;
+      axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     }
     return response.data;
   } catch (error) {
@@ -49,34 +57,32 @@ export const getMe = async () => {
     axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     
     const response = await axiosInstance.get("/auth/me");
-    return response.data.user;
+    
+    return response.data?.data?.user || null;
   } catch (error) {
     console.error("Error fetching user info:", error);
-    // Nếu lỗi 401  thì xóa token cũ
     if (error.response?.status === 401) {
       logout();
     }
-    return null; // Nếu lỗi 401 thì xóa token và trả về null
+    return null; 
   }
 };
+
 /**
- * Đăng nhập bằng Google (Thêm hàm này vào)
+ * Đăng nhập bằng Google
  * @param {string} credential - Token Google trả về
  */
 export const loginWithGoogle = async (credential) => {
   try {
-    // Gọi endpoint ở Backend
     const response = await axiosInstance.post("/auth/google", { credential });
     
-    // Nếu login thành công (BE trả về token)
+    // Hàm này logic đã đúng với cấu trúc Backend
     if (response.data?.data?.token) {
       const { token, user } = response.data.data;
       
-      // Lưu token và user vào LocalStorage (giống hệt luồng login thường)
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
       
-      // Gán token vào header cho các request sau
       axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
       
       return response.data.data;
@@ -84,10 +90,10 @@ export const loginWithGoogle = async (credential) => {
     return response.data;
   } catch (error) {
     console.error("Google Login Service Error:", error);
-    // Trả về lỗi chuẩn để UI hiển thị
     throw error.response?.data || { error: { message: "Google Login Failed" } };
   }
 };
+
 // Đăng xuất
 export const logout = () => {
   localStorage.removeItem("token");

@@ -768,12 +768,11 @@ export const joinProjectByCode = async (inviteCode, userId, currentOrganizationI
     throw new Error('INVALID_INVITE_CODE');
   }
 
-  
   const normalizedCode = inviteCode.toUpperCase().trim();
 
+  // 1. Tìm Project bằng Code 
   const project = await Project.findOne({ 
     inviteCode: normalizedCode,
-    // organizationId: currentOrganizationId, Bỏ check tạm vì vừa vào đâu thể có id dc
     deletedAt: null 
   });
   
@@ -782,31 +781,36 @@ export const joinProjectByCode = async (inviteCode, userId, currentOrganizationI
   }
 
   const targetOrgId = project.organizationId;
-  const OrganizationMemberModel = mongoose.model("OrganizationMember");
 
-  const existingOrgMember = await OrganizationMemberModel.findOne({
+  // 2. Check & Add Organization Member 
+  const existingOrgMember = await OrganizationMember.findOne({
     organizationId: targetOrgId,
     userId: userId
   });
 
  if (!existingOrgMember) {
-    await OrganizationMemberModel.create({
+    await OrganizationMember.create({
       organizationId: targetOrgId,
       userId: userId,
       roleInOrganization: "ORG_MEMBER",
       status: "ACTIVE"
     });
 
-    // Cập nhật currentOrg cho User để lần sau vào thẳng Dashboard
+    // 3. Cập nhật User: 
     await User.findByIdAndUpdate(userId, {
       $addToSet: { organizations: targetOrgId },
-      currentOrganizationId: targetOrgId
+      currentOrganizationId: targetOrgId,
+      role: "Member" 
+    });
+  } else {
+    // Nếu đã là member Org rồi thì chỉ cần switch sang Org đó
+    await User.findByIdAndUpdate(userId, {
+        currentOrganizationId: targetOrgId
     });
   }
 
-  const ProjectMemberModel = mongoose.model("ProjectMember");
-  
-  const existingMember = await ProjectMemberModel.findOne({
+  // 4. Check & Add Project Member 
+  const existingMember = await ProjectMember.findOne({
     projectId: project._id,
     userId
   });
@@ -816,16 +820,15 @@ export const joinProjectByCode = async (inviteCode, userId, currentOrganizationI
     throw new Error('ALREADY_MEMBER');
   }
 
-  // 4. Add vào Project
-  await ProjectMemberModel.create({
+  await ProjectMember.create({
     projectId: project._id,
     userId,
-    organizationId: targetOrgId, // Lưu đúng Org ID
+    organizationId: targetOrgId,
     roleInProject: "Member",
     status: "ACTIVE"
   });
   
-  // Log activity
+  // 5. Log activity
   try {
     await ActivityLog.create({
       projectId: project._id,

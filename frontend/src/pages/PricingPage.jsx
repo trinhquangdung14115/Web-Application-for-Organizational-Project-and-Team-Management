@@ -98,6 +98,17 @@ export default function PricingPage() {
           const data = await res.json();
           
           if (res.ok) {
+              if (data.data && data.data.token) {
+                  localStorage.setItem('token', data.data.token);
+                  if (data.data.user) {
+                      localStorage.setItem('user', JSON.stringify(data.data.user));
+                  }
+                  
+                  // Force reload trang để App nhận diện Token mới và Org mới
+                  window.location.href = '/home'; 
+                  return;
+              }
+
               navigate('/home'); 
           } else {
               setJoinError(data.message || "Failed to join project.");

@@ -1,5 +1,8 @@
 import User from "../models/user.model.js";
-import Organization from "../models/organization.model.js"; // ✅ THÊM
+import Organization from "../models/organization.model.js"; 
+import Project from "../models/project.model.js"; 
+import ProjectMember from "../models/projectMember.model.js"; 
+import OrganizationMember from "../models/organizationMember.model.js"; 
 import { signToken } from "../utils/jwt.js";
 import { OAuth2Client } from "google-auth-library";
 import crypto from "crypto";
@@ -8,10 +11,11 @@ import * as authValidator from "../validators/auth.validator.js";
 import * as authService from "../services/auth.service.js";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
 // POST /auth/signup 
 export async function signup(req, res, next) {
   try {
-    // Validate request data
+    // 1. Validate request data
     const validation = authValidator.validateSignup(req.body);
     if (!validation.isValid) {
       return res.status(400).json({
@@ -21,60 +25,120 @@ export async function signup(req, res, next) {
       });
     }
 
-    //  Create user using service
-    const { name, email, password } = req.body;
-    const result = await authService.createUser(name, email, password);
+    const { name, email, password, inviteCode } = req.body;
 
-    const userId = result.user.id || result.user._id;
-
-    //  Get created user
-    const user = await User.findById(userId);
-    if (!user) {
-      throw new Error("USER_CREATION_FAILED");
+    // 2. CHECK INVITE CODE TRƯỚC (Nếu có code thì check xem project có tồn tại không)
+    let projectToJoin = null;
+    if (inviteCode) {
+        projectToJoin = await Project.findOne({
+            inviteCode: inviteCode.toUpperCase().trim(),
+            deletedAt: null
+        });
+        
+        // Nếu nhập code lung tung thì báo lỗi luôn
+        if (!projectToJoin) {
+            return res.status(400).json({ 
+                success: false, 
+                error: "ValidationError", 
+                message: "Invalid or expired invite code" 
+            });
+        }
     }
 
-    //  Create default organization for new user
-    const newOrg = await Organization.create({
-      name: `${name}'s Organization`, // "John's Organization"
-      ownerId: user._id,
-      status: 'ACTIVE',
-      allowedIps: [],
-      attendanceSettings: {
-        enableIpCheck: true,
-        standardCheckInHour: 9,
-        standardCheckOutHour: 17,
-        allowLateCheckIn: true,
-        lateThresholdMinutes: 15
-      }
-    });
+    // 3. Create user using service
+    const result = await authService.createUser(name, email, password);
+    const userId = result.user.id || result.user._id;
 
-    //  Link user to organization
-    user.currentOrganizationId = newOrg._id;
-    user.organizations = [newOrg._id];
-    user.role = "Admin"; // Owner of their org is Admin
-    await user.save();
+    // Get created user to update fields
+    const user = await User.findById(userId);
+    if (!user) throw new Error("USER_CREATION_FAILED");
 
-    //  Generate new token with organizationId
+    let finalOrganizationId;
+    let finalOrgObj; // Để trả về response
+
+    if (projectToJoin) {
+        finalOrganizationId = projectToJoin.organizationId;
+        finalOrgObj = await Organization.findById(finalOrganizationId);
+
+        // A. Update User System Role -> MEMBER (Không phải Admin)
+        user.currentOrganizationId = finalOrganizationId;
+        user.organizations = [finalOrganizationId];
+        user.role = "Member"; 
+        await user.save();
+
+        // B. Add vào OrganizationMember (Role: ORG_MEMBER)
+        await OrganizationMember.create({
+            userId: user._id,
+            organizationId: finalOrganizationId,
+            roleInOrganization: "ORG_MEMBER"
+        });
+
+        // C. Add vào ProjectMember (Role: Member)
+        const existingPrjMem = await ProjectMember.findOne({ userId: user._id, projectId: projectToJoin._id });
+        if (!existingPrjMem) {
+            await ProjectMember.create({
+                userId: user._id,
+                projectId: projectToJoin._id,
+                organizationId: finalOrganizationId,
+                roleInProject: "Member",
+                status: "ACTIVE"
+            });
+        }
+    } 
+
+    else {
+        // Create default organization
+        const newOrg = await Organization.create({
+            name: `${name}'s Organization`,
+            ownerId: user._id,
+            status: 'ACTIVE',
+            allowedIps: [],
+            attendanceSettings: {
+                enableIpCheck: true,
+                standardCheckInHour: 9,
+                standardCheckOutHour: 17,
+                allowLateCheckIn: true,
+                lateThresholdMinutes: 15
+            }
+        });
+
+        finalOrganizationId = newOrg._id;
+        finalOrgObj = newOrg;
+
+        // Link user to organization
+        user.currentOrganizationId = newOrg._id;
+        user.organizations = [newOrg._id];
+        user.role = "Admin"; 
+        await user.save();
+
+        // Bổ sung: Tạo OrganizationMember cho Admin luôn (để đồng bộ dữ liệu)
+        await OrganizationMember.create({
+            userId: user._id,
+            organizationId: newOrg._id,
+            roleInOrganization: "ORG_ADMIN"
+        });
+    }
+
+    // 4. Generate Token
     const tokenPayload = {
       sub: user._id.toString(),    
       email: user.email,
       role: user.role,
-      organizationId: newOrg._id.toString() 
+      organizationId: finalOrganizationId.toString() 
     };
     const newToken = signToken(tokenPayload);
 
-    //  Send welcome email (optional, don't block response)
+    // 5. Send welcome email (optional)
     try {
       await sendWelcomeEmail(user.email, user.name);
     } catch (emailErr) {
       console.error("Failed to send welcome email:", emailErr);
-      // Don't throw error, just log
     }
 
-    //  Return response with user + organization
+    // 6. Return response
     return res.status(201).json({
       success: true,
-      message: "User and Organization created successfully",
+      message: projectToJoin ? "Joined project successfully" : "User and Organization created successfully",
       data: {
         token: newToken,
         tokenType: "Bearer",
@@ -83,27 +147,20 @@ export async function signup(req, res, next) {
           name: user.name,
           email: user.email,
           role: user.role,
-          currentOrganizationId: newOrg._id,
+          currentOrganizationId: finalOrganizationId,
           organizations: user.organizations,
           createdAt: user.createdAt,
         },
-        organization: newOrg
+        organization: finalOrgObj
       },
     });
+
   } catch (err) {
     if (err.message === "EMAIL_EXISTS") {
-      return res.status(409).json({
-        success: false,
-        error: "ConflictError",
-        message: "Email already registered",
-      });
+      return res.status(409).json({ success: false, error: "ConflictError", message: "Email already registered" });
     }
     if (err.message === "USER_CREATION_FAILED") {
-      return res.status(500).json({
-        success: false,
-        error: "ServerError",
-        message: "Failed to create user",
-      });
+      return res.status(500).json({ success: false, error: "ServerError", message: "Failed to create user" });
     }
     next(err);
   }
@@ -121,9 +178,9 @@ export async function login(req, res, next) {
       });
     }
 
-    // Login using service (GỌI ĐÚNG loginUser)
+    // Login using service
     const { email, password } = req.body;
-    const authResult = await authService.loginUser(email, password); //  SỬA: loginUser thay vì createUser
+    const authResult = await authService.loginUser(email, password); 
     const publicUserId = authResult.user.id || authResult.user._id; 
 
     // Query lấy User gốc + các trường cần thiết
@@ -147,15 +204,15 @@ export async function login(req, res, next) {
     }
 
     
-    //  Get organization info (optional)
+    // Get organization info (optional)
    const tokenPayload = {
       sub: user._id.toString(),    
       email: user.email,
       role: user.role,
-      organizationId: user.currentOrganizationId.toString() // SỬA: .toString()
+      organizationId: user.currentOrganizationId.toString()
     };
     
-    // Gọi hàm signToken từ utils (nhớ import hàm này ở đầu file)
+    // Gọi hàm signToken từ utils
     const newToken = signToken(tokenPayload);
 
     // 5. Lấy thông tin Org để trả về FE
@@ -169,7 +226,7 @@ export async function login(req, res, next) {
         token: newToken,
         tokenType: "Bearer",
         user: authResult.user,
-        organization: organization //  Thêm organization info
+        organization: organization
       },
     });
   } catch (err) {

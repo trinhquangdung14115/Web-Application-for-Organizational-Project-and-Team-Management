@@ -1,5 +1,7 @@
 import * as projectValidator from "../validators/project.validator.js";
 import * as projectService from "../services/project.service.js";
+import User from "../models/user.model.js"; 
+import { signToken } from "../utils/jwt.js"; 
 
 // POST /projects
 export const createProject = async (req, res) => {
@@ -568,15 +570,30 @@ export const joinProjectByCode = async (req, res) => {
 
     const { inviteCode } = req.body;
     const userId = req.user._id;
-    //const currentOrgId = req.user.currentOrganizationId;
+    const currentOrganizationId = req.user.currentOrganizationId; 
 
-    // 2. Call service
-    const projectId = await projectService.joinProjectByCode(inviteCode, userId, null);
+    // 2. Call service (Xử lý việc đổi Role/Org trong DB)
+    const projectId = await projectService.joinProjectByCode(inviteCode, userId, currentOrganizationId);
+
+    // 3. Lấy lại thông tin User mới nhất (DB đã update Role thành Member)
+    const updatedUser = await User.findById(userId);
+
+    // 4. Tạo TOKEN MỚI với Org mới và Role mới
+    const newToken = signToken({
+      sub: updatedUser._id.toString(),
+      email: updatedUser.email,
+      role: updatedUser.role,
+      organizationId: updatedUser.currentOrganizationId.toString()
+    });
 
     res.json({ 
       success: true, 
       message: "Successfully joined project", 
-      projectId 
+      projectId,
+      data: {
+        token: newToken, 
+        user: updatedUser
+      }
     });
 
   } catch (err) {
