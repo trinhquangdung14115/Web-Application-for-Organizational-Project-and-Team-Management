@@ -15,6 +15,7 @@ import AppRouter from "./routes/AppRouter.jsx";
 import PaymentSuccess from "./pages/PaymentSuccess.jsx";
 import PricingPage from "./pages/PricingPage.jsx";
 import LandingPage from "./pages/LandingPage.jsx";
+import PendingPage from "./pages/PendingPage.jsx";
 
 // sau này thêm Dashboard, NotFound,...
 
@@ -33,6 +34,8 @@ function App() {
       <Route path="/payment/success" element={<PaymentSuccess />} />
       {/* pricing */}
       <Route path="/pricing" element={<PricingPage />} />
+      {/* pending approval */}
+      <Route path="/pending" element={<PendingPage />} />
 
       {/* user */}
       <Route path="" element={<AppRouter requiredRole={["Member", "Manager"]}> <MainLayout /> </AppRouter> }>

@@ -74,6 +74,8 @@ export const createProject = async (req, res) => {
 export const listProjects = async (req, res) => {
   try {
     const currentOrgId = req.user.currentOrganizationId;
+    const userId = req.user._id;
+    const userRole = req.user.role;
     if (!currentOrgId) {
       return res.status(200).json({ success: true, count: 0, data: [] });
     }
@@ -94,7 +96,7 @@ export const listProjects = async (req, res) => {
       organizationId: currentOrgId
     };
 
-    const result = await projectService.listProjects(filters);
+    const result = await projectService.listProjects(filters, userId, userRole);
 
     res.json({ 
       success: true, 

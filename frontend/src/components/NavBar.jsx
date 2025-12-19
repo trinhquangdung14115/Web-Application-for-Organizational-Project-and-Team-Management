@@ -5,6 +5,7 @@ import {
     UserCircleIcon 
 } from '@heroicons/react/24/outline';
 import NotificationBell from './NotificationBell'; 
+import JoinRequestBell from './JoinRequestBell';
 import { useAuth } from '../services/AuthContext'; 
 
 
@@ -13,6 +14,7 @@ import { useAuth } from '../services/AuthContext';
 const HeaderIcons = ({   unreadCount, onLogout }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
     const { user, logout } = useAuth();
+    const canManageRequests = ['Admin', 'Manager'].includes(user?.role);
     const initials = user?.name
   ? user.name
       .split(" ")
@@ -23,6 +25,8 @@ const HeaderIcons = ({   unreadCount, onLogout }) => {
 
     return (
         <div className="flex space-x-4 items-center">
+            {/* JOIN REQUEST BELL - CHỈ HIỆN CHO ADMIN/MANAGER */}
+            {canManageRequests && <JoinRequestBell />}
             {/* Dùng prop unreadCount */}
             <NotificationBell notificationCount={unreadCount} />
 

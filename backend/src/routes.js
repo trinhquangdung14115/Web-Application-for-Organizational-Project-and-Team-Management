@@ -64,7 +64,7 @@ router.use("/", organizationRoutes);
 // Projects - All require organization context
 router.post("/projects", verifyToken, requireOrgAccess, checkRole(ROLES.ADMIN, ROLES.MANAGER), createProject);
 router.get("/projects", verifyToken, requireOrgAccess, listProjects);
-router.get("/projects/pending-requests", verifyToken, requireOrgAccess, checkRole(ROLES.ADMIN), getPendingRequests);
+router.get("/projects/pending-requests", verifyToken, requireOrgAccess, checkRole(ROLES.ADMIN,ROLES.MANAGER), getPendingRequests);
 router.get("/projects/:id", verifyToken, requireOrgAccess, getProject);
 router.put("/projects/:id", verifyToken, requireOrgAccess, checkRole(ROLES.ADMIN, ROLES.MANAGER), checkProjectActive, updateProject);
 router.delete("/projects/:id", verifyToken, requireOrgAccess, checkRole(ROLES.ADMIN, ROLES.MANAGER), deleteProject);

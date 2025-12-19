@@ -137,7 +137,7 @@ export async function signup(req, res, next) {
           projectId: projectToJoin._id,
           organizationId: finalOrganizationId,
           roleInProject: "Member",
-          status: "ACTIVE"
+          status: "PENDING"
         }], { session }); 
       }
 

@@ -40,11 +40,9 @@ const SignUpPage = () => {
     }
 
     // 2. Xử lý Join Project
-    // Nếu có invite code -> Backend đã tự add vào project -> Về Home
     if (location.state?.action === 'join' && location.state?.code) {
-        navigate('/home');
+        navigate('/pending'); 
     } else {
-        // Mặc định: Về Dashboard (thay vì Pricing, vì đã có org rồi)
         navigate('/home');
     }
   };
@@ -72,22 +70,18 @@ const SignUpPage = () => {
       const name = `${formData.firstName} ${formData.lastName}`.trim();
       const inviteCode = location.state?.code || null;
       
-      // --- LOGIC MỚI: Gọi Signup và nhận Token luôn ---
+      // --- Gọi Signup và nhận Token luôn ---
       const response = await signup(name, formData.email, formData.password, inviteCode);
       
-      // Backend trả về: { success: true, data: { token, user... } }
-      // Service trả về: response.data
       const token = response.data?.token || response.token; 
       const user = response.data?.user || response.user;
 
       if (user && token) {
-          saveLogin(user, token); // Lưu token nóng hổi vào Context
+          saveLogin(user, token); // Lưu token vào Context
           await handlePostSignupRedirect(token); // Điều hướng ngay
       } else {
-          // Trường hợp hy hữu không có token
           navigate('/login');
       }
-      // ------------------------------------------------
 
     } catch (err) {
       console.error(err);

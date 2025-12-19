@@ -100,7 +100,7 @@ export const createProject = async (projectData, creatorId, currentOrganizationI
 /**
  * Get all projects (with filters)
  */
-export const listProjects = async (filters = {}) => {
+export const listProjects = async (filters = {}, userId, userRole) => {
   // organizationId is required
   if (!filters.organizationId) {
     throw new Error('ORGANIZATION_ID_REQUIRED');
@@ -111,16 +111,26 @@ export const listProjects = async (filters = {}) => {
     organizationId: filters.organizationId
   };
 
-  // Apply other filters
-  if (filters.status) {
-    query.status = filters.status;
+  // --- LOGIC MỚI: NẾU KHÔNG PHẢI ADMIN/MANAGER, CHỈ LẤY DỰ ÁN ĐÃ ACTIVE ---
+  // Nếu là Admin/Manager của Org thì xem được hết 
+  // Nếu là Member thường -> Phải check bảng ProjectMember xem đã ACTIVE chưa
+  if (userRole !== 'Admin' && userRole !== 'Manager') {
+      // 1. Tìm tất cả các project mà user này là thành viên ACTIVE
+      const activeMemberships = await ProjectMember.find({
+          userId: userId,
+          organizationId: filters.organizationId,
+          status: "ACTIVE" 
+      }).select('projectId');
+
+      const activeProjectIds = activeMemberships.map(m => m.projectId);
+
+      // 2. Thêm điều kiện vào query: Chỉ lấy project nằm trong list Active này
+      query._id = { $in: activeProjectIds };
   }
 
-  if (filters.archived !== undefined) {
-    query.isArchived = filters.archived === 'true';
-  }
+  if (filters.status) query.status = filters.status;
+  if (filters.archived !== undefined) query.isArchived = filters.archived === 'true';
 
-  // Pagination
   const page = parseInt(filters.page) || 1;
   const limit = parseInt(filters.limit) || 20;
   const skip = (page - 1) * limit;
@@ -135,12 +145,7 @@ export const listProjects = async (filters = {}) => {
 
   return {
     projects,
-    pagination: {
-      page,
-      limit,
-      total,
-      pages: Math.ceil(total / limit),
-    },
+    pagination: { page, limit, total, pages: Math.ceil(total / limit) },
   };
 };
 
@@ -861,8 +866,8 @@ export const joinProjectByCode = async (inviteCode, userId, currentOrganizationI
       projectId: project._id,
       userId,
       organizationId: targetOrgId,
-      roleInProject: "Member", // Role trong project (khác với role hệ thống)
-      status: "ACTIVE"
+      roleInProject: "Member", // Role trong project
+      status: "PENDING"
     }], { session });
     
     // 4.  Log activity (WITH SESSION)
