@@ -22,7 +22,7 @@ import {
 // === MENU ITEMS ===
 const menuItems = [
     { name: 'Dashboard', icon: Squares2X2Icon, href: '/home' },
-    { name: 'My Tasks', icon: FolderIcon, href: '/tasks', hideForAdmin: true },
+    { name: 'Kanban', icon: FolderIcon, href: '/tasks', hideForAdmin: true },
     { name: 'Calendar', icon: CalendarDaysIcon, href: '/calendar' },
     { name: 'Members', icon: UsersIcon, href: '/members' },
     { name: 'Projects', icon: BriefcaseIcon, href: '/projects', adminOnly: true },
@@ -94,6 +94,7 @@ const SideBar = ({ unreadCount, basePath="" }) => {
 
     const visibleMenuItems = menuItems.filter(item => {
         if (item.hideForAdmin && isAdmin) return false;
+        if (item.adminOnly && !isAdmin) return false;
         return true;
     });
 

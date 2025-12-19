@@ -27,7 +27,7 @@ const MainLayout = () => {
     // ----- My Tasks -----
     if (path === '/tasks') {
       setHeaderData({
-        title: 'My Tasks',
+        title: 'Kanban Board',
         subtitle: 'Manage and track your assigned tasks across all projects',
       });
     }
