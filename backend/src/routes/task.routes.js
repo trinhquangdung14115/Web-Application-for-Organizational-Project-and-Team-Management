@@ -8,11 +8,14 @@ import {
   deleteTask,
   reorderTask,
   createSubtask,
-  toggleSubtask, // Imported new controller
-  deleteSubtask,  // Imported new controller
+  toggleSubtask,
+  deleteSubtask,
   getTasksById,
-  magicSubtasks
+  magicSubtasks,
+  addAttachment,
+  removeAttachment
 } from "../controllers/task.controller.js";
+import { getLabels } from "../controllers/label.controller.js";
 import { verifyToken, checkRole, requireOrgAccess } from "../middlewares/auth.js";
 import { checkProjectActive } from "../middlewares/archive.middleware.js";
 
@@ -25,7 +28,6 @@ const router = express.Router();
  */
 router.get("/tasks", verifyToken, getFilteredTasks);
 
-// lấy chi tiết 1 task theo id
 /**
  * @route   GET /tasks/:id
  * @desc    Get task detail by ID
@@ -71,19 +73,19 @@ router.patch("/tasks/:id", verifyToken, requireOrgAccess, updateTaskStatus);
 router.delete("/tasks/:id", verifyToken, requireOrgAccess, checkRole("Admin", "Manager"), deleteTask);
 
 /**
- * @route   POST /tasks/:id/subtasks
+ * @route   POST /tasks/:taskId/subtasks
  * @desc    Create a subtask
  */
 router.post("/tasks/:taskId/subtasks", verifyToken, requireOrgAccess, createSubtask);
 
 /**
- * @route   PATCH /tasks/:id/subtasks/:subtaskId/toggle
+ * @route   PATCH /tasks/:taskId/subtasks/:subtaskId/toggle
  * @desc    Toggle subtask completion
  */
 router.patch("/tasks/:taskId/subtasks/:subtaskId/toggle", verifyToken, requireOrgAccess, toggleSubtask);
 
 /**
- * @route   DELETE /tasks/:id/subtasks/:subtaskId
+ * @route   DELETE /tasks/:taskId/subtasks/:subtaskId
  * @desc    Delete a subtask
  */
 router.delete("/tasks/:taskId/subtasks/:subtaskId", verifyToken, requireOrgAccess, deleteSubtask);
@@ -94,5 +96,26 @@ router.delete("/tasks/:taskId/subtasks/:subtaskId", verifyToken, requireOrgAcces
  * @access  Private
  */
 router.post("/tasks/:taskId/magic-subtasks", verifyToken, requireOrgAccess, magicSubtasks);
+
+/**
+ * @route   GET /projects/:id/labels
+ * @desc    Get all labels of a project
+ * @access  Private
+ */
+router.get("/projects/:id/labels", verifyToken, requireOrgAccess, getLabels);
+
+/**
+ * @route   POST /tasks/:taskId/attachments
+ * @desc    Add an attachment to task
+ * @access  Private
+ */
+router.post("/tasks/:taskId/attachments", verifyToken, requireOrgAccess, addAttachment);
+
+/**
+ * @route   DELETE /tasks/:taskId/attachments/:attachmentId
+ * @desc    Remove an attachment from task
+ * @access  Private
+ */
+router.delete("/tasks/:taskId/attachments/:attachmentId", verifyToken, requireOrgAccess, removeAttachment);
 
 export default router;

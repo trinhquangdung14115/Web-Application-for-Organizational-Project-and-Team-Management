@@ -1,22 +1,20 @@
+import Label from "../models/label.model.js";
 import Project from "../models/project.model.js";
-import Label from "../models/label.model.js"; // <--- Import Model Label
 import mongoose from "mongoose";
 
 // GET /projects/:id/labels
 export const getLabels = async (req, res) => {
   try {
-    const { id } = req.params; // id là ProjectId
-    
-    // Validate ProjectId
+    const { id } = req.params; 
+
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, error: "ValidationError", message: "Invalid project ID format" });
     }
     
-    // 1. Logic Mới: Tìm trực tiếp trong bảng Label
     const labels = await Label.find({ 
-      projectId: id, 
-      deletedAt: null 
-    }).sort({ createdAt: 1 }); // Sắp xếp label cũ nhất lên trước
+        projectId: id,
+        deletedAt: null 
+    }).sort({ createdAt: 1 }); 
 
     res.json({ success: true, data: labels });
   } catch (err) {
@@ -28,14 +26,15 @@ export const getLabels = async (req, res) => {
 // POST /projects/:id/labels
 export const createLabel = async (req, res) => {
   try {
-    const { id } = req.params; // id là ProjectId
+    const { id } = req.params; 
     const { name, color } = req.body || {};
     
-    // Validate
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ success: false, error: "ValidationError", message: "Invalid project ID format" });
     }
-    if (!name) return res.status(400).json({ success: false, error: "ValidationError", message: "Label name is required" });
+    if (!name || !name.trim()) {
+      return res.status(400).json({ success: false, error: "ValidationError", message: "Label name is required" });
+    }
 
     // 1. Phải tìm Project trước để lấy organizationId (Model Label bắt buộc trường này)
     const project = await Project.findById(id);
@@ -43,18 +42,17 @@ export const createLabel = async (req, res) => {
       return res.status(404).json({ success: false, error: "NotFoundError", message: "Project not found" });
     }
 
-    // 2. Logic Mới: Tạo record trong bảng Label
     const newLabel = await Label.create({
-      name: name.trim(),
-      color: color || "#3b82f6",
-      projectId: id,
-      organizationId: project.organizationId, // Lấy từ project
-      deletedAt: null
+        name: name.trim(),
+        color: color || "#3b82f6",
+        projectId: project._id,
+        organizationId: project.organizationId, 
+        deletedAt: null
     });
 
     res.status(201).json({ 
       success: true, 
-      message: "Label created", 
+      message: "Label created successfully", 
       data: newLabel
     });
 
@@ -67,28 +65,29 @@ export const createLabel = async (req, res) => {
 // PATCH /projects/:id/labels/:labelId
 export const updateLabel = async (req, res) => {
   try {
-    const { id, labelId } = req.params;
+    const { labelId } = req.params;
     const { name, color } = req.body || {};
     
-    // Validate IDs
-    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(labelId)) {
-      return res.status(400).json({ success: false, error: "ValidationError", message: "Invalid ID format" });
+    if (!mongoose.Types.ObjectId.isValid(labelId)) {
+      return res.status(400).json({ success: false, error: "ValidationError", message: "Invalid label ID format" });
     }
 
-    // 1. Logic Mới: Update trực tiếp vào bảng Label
-    const label = await Label.findOne({ _id: labelId, projectId: id, deletedAt: null });
-    
-    if (!label) {
-      return res.status(404).json({ success: false, error: "NotFoundError", message: "Label not found" });
+    const updatedLabel = await Label.findByIdAndUpdate(
+        labelId,
+        { 
+            $set: { 
+                ...(name && { name: name.trim() }), 
+                ...(color && { color }) 
+            } 
+        },
+        { new: true }
+    );
+
+    if (!updatedLabel || updatedLabel.deletedAt) {
+        return res.status(404).json({ success: false, error: "NotFoundError", message: "Label not found" });
     }
 
-    if (name) label.name = name.trim();
-    if (color) label.color = color;
-    
-    await label.save();
-
-    res.json({ success: true, message: "Label updated", data: label });
-
+    res.json({ success: true, message: "Label updated", data: updatedLabel });
   } catch (err) {
     console.error("Update Label Error:", err);
     res.status(500).json({ success: false, message: err.message });
@@ -98,23 +97,20 @@ export const updateLabel = async (req, res) => {
 // DELETE /projects/:id/labels/:labelId
 export const deleteLabel = async (req, res) => {
   try {
-    const { id, labelId } = req.params;
+    const { labelId } = req.params;
     
-    // Validate IDs
-    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(labelId)) {
-      return res.status(400).json({ success: false, error: "ValidationError", message: "Invalid ID format" });
+    if (!mongoose.Types.ObjectId.isValid(labelId)) {
+      return res.status(400).json({ success: false, error: "ValidationError", message: "Invalid label ID format" });
     }
 
-    // 1. Logic Mới: Soft delete (vì model có deletedAt) hoặc Hard delete
-    // Ở đây tôi dùng Soft Delete để khớp với schema
-    const label = await Label.findOneAndUpdate(
-      { _id: labelId, projectId: id, deletedAt: null },
-      { deletedAt: new Date() },
-      { new: true }
+    const deletedLabel = await Label.findByIdAndUpdate(
+        labelId,
+        { deletedAt: new Date() },
+        { new: true }
     );
-
-    if (!label) {
-      return res.status(404).json({ success: false, error: "NotFoundError", message: "Label not found" });
+    
+    if (!deletedLabel) {
+        return res.status(404).json({ success: false, error: "NotFoundError", message: "Label not found" });
     }
 
     res.json({ success: true, message: "Label deleted" });

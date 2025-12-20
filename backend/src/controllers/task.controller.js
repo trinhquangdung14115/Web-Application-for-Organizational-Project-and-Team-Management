@@ -1,5 +1,7 @@
 import * as taskService from "../services/task.service.js";
 import mongoose from "mongoose";
+import Task from "../models/task.model.js"; 
+
 /**
  * @desc    Get all tasks in a project
  * @route   GET /projects/:id/tasks
@@ -275,6 +277,7 @@ export const toggleSubtask = async (req, res) => {
     res.status(500).json({ success: false, error: "ServerError", message: err.message });
   }
 };
+
 /*
   * @desc    Delete a Subtask
   * @route   DELETE /tasks/:taskId/subtasks/:subtaskId
@@ -319,5 +322,67 @@ export const magicSubtasks = async (req, res) => {
       return res.status(404).json({ success: false, message: "Task not found" });
     }
     res.status(500).json({ success: false, error: "ServerError", message: err.message });
+  }
+};
+
+/**
+ * @desc Add attachment to task
+ * @route POST /tasks/:taskId/attachments
+ * @access Private
+ */
+export const addAttachment = async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    const { name, url } = req.body;
+
+    // Validate Input
+    if (!name || !url) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "ValidationError", 
+        message: "Attachment name and URL are required" 
+      });
+    }
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ success: false, message: "Task not found" });
+    }
+
+    task.attachments.push({ name, url });
+    await task.save();
+
+    const newAttachment = task.attachments[task.attachments.length - 1];
+
+    res.status(201).json({ 
+      success: true, 
+      message: "Attachment added successfully", 
+      data: newAttachment 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * @desc Remove attachment from task
+ * @route DELETE /tasks/:taskId/attachments/:attachmentId
+ * @access Private
+ */
+export const removeAttachment = async (req, res) => {
+  try {
+    const { taskId, attachmentId } = req.params;
+
+    const task = await Task.findById(taskId);
+    if (!task) {
+      return res.status(404).json({ success: false, message: "Task not found" });
+    }
+
+    task.attachments.pull({ _id: attachmentId });
+    await task.save();
+
+    res.json({ success: true, message: "Attachment removed successfully" });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
   }
 };

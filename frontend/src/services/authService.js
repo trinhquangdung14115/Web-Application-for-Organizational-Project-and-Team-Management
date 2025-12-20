@@ -1,21 +1,25 @@
 import axiosInstance from "./api";
 
-export const signup = async (name, email, password, inviteCode = null) => {
+// Đăng ký
+export const signup = async (name, email, password, inviteCode = null, plan = null) => {
   try {
     const response = await axiosInstance.post("/auth/signup", {
       name,
       email,
       password,
-      inviteCode, 
+      inviteCode,
+      plan,
     });
 
     if (response.data?.data?.token) {
-      const { token, user } = response.data.data;
+      const { token, user, organization } = response.data.data;
       
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
+      if (organization) {
+        localStorage.setItem("organization", JSON.stringify(organization));
+      }
       
-      // Thêm token vào header cho các request sau
       axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     }
     return response.data;
@@ -33,12 +37,14 @@ export const login = async (email, password) => {
     });
 
     if (response.data?.data?.token) {
-      const { token, user } = response.data.data;
+      const { token, user, organization } = response.data.data; 
 
       localStorage.setItem("token", token);
       localStorage.setItem("user", JSON.stringify(user));
+      if (organization) {
+        localStorage.setItem("organization", JSON.stringify(organization));
+      }
       
-      // Thêm token vào header cho các request sau
       axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     }
     return response.data;
@@ -53,7 +59,6 @@ export const getMe = async () => {
     const token = localStorage.getItem("token");
     if (!token) return null;
     
-    // Thêm token vào header
     axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
     
     const response = await axiosInstance.get("/auth/me");
@@ -68,15 +73,42 @@ export const getMe = async () => {
   }
 };
 
-/**
- * Đăng nhập bằng Google
- * @param {string} credential - Token Google trả về
- */
+export const refreshProfile = async () => {
+  try {
+    const token = localStorage.getItem("token");
+    if (!token) return null;
+
+    axiosInstance.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+
+    // Gọi API /auth/me (đã được update trả về cả organization)
+    const response = await axiosInstance.get("/auth/me");
+
+    if (response.data?.data) {
+        const { user, organization } = response.data.data;
+
+        // Cập nhật User
+        if (user) {
+            localStorage.setItem("user", JSON.stringify(user));
+        }
+        
+        // Cập nhật Organization (để lấy Plan mới: PREMIUM)
+        if (organization) {
+            localStorage.setItem("organization", JSON.stringify(organization));
+        }
+
+        return { user, organization };
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to refresh profile:", error);
+    return null;
+  }
+};
+
 export const loginWithGoogle = async (credential) => {
   try {
     const response = await axiosInstance.post("/auth/google", { credential });
     
-    // Hàm này logic đã đúng với cấu trúc Backend
     if (response.data?.data?.token) {
       const { token, user } = response.data.data;
       
@@ -98,26 +130,23 @@ export const loginWithGoogle = async (credential) => {
 export const logout = () => {
   localStorage.removeItem("token");
   localStorage.removeItem("user");
+  localStorage.removeItem("organization"); 
   delete axiosInstance.defaults.headers.common["Authorization"];
 };
 
-// Lấy thông tin user từ localStorage
 export const getStoredUser = () => {
   const user = localStorage.getItem("user");
   return user ? JSON.parse(user) : null;
 };
 
-// Lấy token
 export const getToken = () => {
   return localStorage.getItem("token");
 };
 
-// Kiểm tra đã đăng nhập chưa
 export const isAuthenticated = () => {
   return !!localStorage.getItem("token");
 };
 
-// Khởi tạo token nếu có
 export const initAuth = () => {
   const token = getToken();
   if (token) {
@@ -125,5 +154,4 @@ export const initAuth = () => {
   }
 };
 
-// Gọi hàm khởi tạo khi load module
 initAuth();

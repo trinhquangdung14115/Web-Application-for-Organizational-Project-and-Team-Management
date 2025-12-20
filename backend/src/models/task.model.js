@@ -12,7 +12,6 @@ const taskSchema = new mongoose.Schema(
       ref: "Project", 
       required: true 
     },
-    // Removed parentId as requested by Leader
     title: { 
       type: String, 
       required: true 
@@ -56,15 +55,19 @@ const taskSchema = new mongoose.Schema(
     },
     isOverdueNotified: {
       type: Boolean,
-      default: false // Mặc định là chưa thông báo
+      default: false 
     },
     deletedAt: { 
       type: Date, 
       default: null 
     },
     orderIndex: { type: Number, default: 0 },
-    // New field for embedded subtasks
-    subtasks: [subtaskSchema]
+    subtasks: [subtaskSchema],
+    attachments: [{
+        name: { type: String, required: true },
+        url: { type: String, required: true },
+        addedAt: { type: Date, default: Date.now }
+    }]
   },
   { timestamps: true }
 );

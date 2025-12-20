@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../services/AuthContext';
+import { refreshProfile } from '../services/authService'; // 👉 Import hàm mới
 import Confetti from 'react-confetti'; 
 import { 
     CheckCircleIcon, 
@@ -8,8 +9,6 @@ import {
     ArrowRightIcon,
     ExclamationTriangleIcon
 } from '@heroicons/react/24/solid';
-
-const API_BASE_URL = 'http://localhost:4000/api'; 
 
 const PaymentSuccess = () => {
     const navigate = useNavigate();
@@ -25,46 +24,29 @@ const PaymentSuccess = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    const refreshUserProfile = async () => {
+    const handleSyncData = async () => {
         try {
-            const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
-            if (!token) throw new Error("No access token found");
-
-            console.log("🔄 Fetching updated profile...");
-
-            const res = await fetch(`${API_BASE_URL}/auth/me`, {
-                method: 'GET',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            const responseData = await res.json();
-            console.log("✅ API Response:", responseData);
-
-            // LOGIC TÌM USER CHÍNH XÁC 
-            const realUser = responseData.data?.user || responseData.user || responseData.data;
-
-            if (res.ok && realUser) {
-                // Cập nhật Context & LocalStorage
-                setUser(realUser);
-                localStorage.setItem('user', JSON.stringify(realUser));
+            console.log("Syncing profile data...");
+            const data = await refreshProfile(); // Gọi hàm service
+            
+            if (data && data.user) {
+                console.log("Profile synced:", data);
+                setUser(data.user); // Cập nhật Context
                 setStatus('success');
             } else {
-                throw new Error("Could not extract user data from response");
+                throw new Error("Failed to retrieve user data");
             }
         } catch (error) {
-            console.error("❌ Refresh failed:", error);
-            setErrorMsg(error.message);
+            console.error("Sync failed:", error);
+            setErrorMsg(error.message || "Unknown error");
             setStatus('error');
         }
     };
 
     useEffect(() => {
-        // Chờ 1.5s để Webhook kịp chạy xong
+        // Chờ 1.5s để đảm bảo Webhook phía Backend đã chạy xong DB update
         const timer = setTimeout(() => {
-            refreshUserProfile();
+            handleSyncData();
         }, 1500);
         return () => clearTimeout(timer);
     }, []);
