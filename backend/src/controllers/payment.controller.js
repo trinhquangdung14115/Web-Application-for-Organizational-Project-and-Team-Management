@@ -80,9 +80,6 @@ export const handleWebhook = async (req, res) => {
     const userId = session.metadata.userId; // Lấy từ metadata lúc tạo session
 
     try {
-      console.log(`Payment success for User ID: ${userId}`);
-
-    try {
       const user = await User.findOne(userId);
       if (user && user.currentOrganizationId){
         await Organization.findByIdAndUpdate(user.currentOrganizationId,{
