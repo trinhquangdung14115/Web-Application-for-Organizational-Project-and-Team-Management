@@ -58,7 +58,7 @@ router.get("/protected/manager",
 
 router.use("/", taskRoutes);
 router.use("/", meetingRoutes);
-router.use("/", attendanceRoutes);
+router.use("/attendance", attendanceRoutes);
 router.use("/", organizationRoutes);
 
 // Projects - All require organization context

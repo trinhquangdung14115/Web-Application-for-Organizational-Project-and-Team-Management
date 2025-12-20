@@ -135,17 +135,17 @@ export const checkIn = async (req, res) => {
     const { note } = req.body;
     const userId = req.user._id;
     
-    const user = await User.findById(userId).select("organizationId");
+    const user = await User.findById(userId).select("currentOrganizationId");
 
-    // Validate projectId
-    if (!user ||!user.organizationId) {
+    // Validate organization
+    if (!user || !user.currentOrganizationId) {
       return res.status(400).json({
         success: false,
         error: "ValidationError",
-        message: "User does not belong to any Organization.",
+        message: "User does not belong to any Organization. Please switch to an organization first.",
       });
     }
-    const organizationId = user.organizationId;
+    const organizationId = user.currentOrganizationId;
     // Check if project exists
     const organization = await Organization.findById(organizationId);
     if (!organization) {
@@ -579,10 +579,18 @@ export const getProjectAttendance = async (req, res) => {
 export const getMyAttendance = async (req, res) => {
   try {
     const userId = req.user._id;
-    const user = await User.findById(userId).select("organizationId");
+    const user = await User.findById(userId).select("currentOrganizationId");
     const {startDate,endDate} = req.query;
 
-    const query = { userId , organizationId:user.organizationId};
+    if (!user || !user.currentOrganizationId) {
+      return res.status(400).json({
+        success: false,
+        error: "ValidationError",
+        message: "User does not belong to any Organization. Please switch to an organization first.",
+      });
+    }
+
+    const query = { userId , organizationId: user.currentOrganizationId};
 
     if (startDate || endDate) {
       query.checkInTime = {};
