@@ -12,6 +12,7 @@ import paymentRoutes from "./routes/payment.routes.js";
 import aiRoutes from "./routes/ai.routes.js";
 import organizationRoutes from "./routes/organization.routes.js";
 import dashboardRoutes from "./routes/dashboard.routes.js";
+import messageRoutes from "./routes/message.routes.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import swaggerUi from "swagger-ui-express";
 import YAML from "yamljs";
@@ -53,6 +54,7 @@ app.use("/api/payment", paymentRoutes);
 app.use("/api/ai", aiRoutes);
 app.use("/api", organizationRoutes);
 app.use("/api", dashboardRoutes);
+app.use("/api", messageRoutes);
 
 // Hàm log routes (Debug purpose)
 function printRoutes(stack, parentPath = '') {
