@@ -23,6 +23,28 @@ const generateRandomCode = (length = 6) => {
   }
   return code;
 };
+/**
+ * Check if user has Manager/Admin permission in Project
+ */
+export const checkProjectPermission = async (projectId, userId, currentOrganizationId) => {
+    // 1. Nếu là Admin hệ thống -> Auto pass
+    const user = await User.findById(userId);
+    if (user.role === 'Admin') return true;
+
+    //  Check bảng ProjectMember
+    const member = await ProjectMember.findOne({
+        projectId,
+        userId,
+        organizationId: currentOrganizationId,
+        status: 'ACTIVE'
+    });
+
+    if (!member) return false;
+
+    // Chỉ cho phép nếu role trong dự án là Admin hoặc Manager
+    return ['Admin', 'Manager'].includes(member.roleInProject);
+};
+
 
 /**
  * Create new project
@@ -282,6 +304,11 @@ export const updateProject = async (projectId, updateData, userId, currentOrgani
     throw new Error('ORGANIZATION_REQUIRED');
   }
 
+  const hasPermission = await checkProjectPermission(projectId, userId, currentOrganizationId);
+  if (!hasPermission) {
+      throw new Error('FORBIDDEN_PROJECT_ACTION'); // Báo lỗi không có quyền
+  }
+
   const project = await Project.findOne({
     _id: projectId,
     organizationId: currentOrganizationId,
@@ -329,6 +356,10 @@ export const deleteProject = async (projectId, userId, currentOrganizationId) =>
     throw new Error('ORGANIZATION_REQUIRED');
   }
 
+  const hasPermission = await checkProjectPermission(projectId, userId, currentOrganizationId);
+  if (!hasPermission) {
+      throw new Error('FORBIDDEN_PROJECT_ACTION'); 
+  }
   const project = await Project.findOne({
     _id: projectId,
     organizationId: currentOrganizationId,
@@ -470,6 +501,11 @@ export const removeMember = async (projectId, userId, currentOrganizationId) => 
 
   if (!currentOrganizationId) {
     throw new Error('ORGANIZATION_REQUIRED');
+  }
+
+  const hasPermission = await checkProjectPermission(projectId, userId, currentOrganizationId);
+  if (!hasPermission) {
+      throw new Error('FORBIDDEN_PROJECT_ACTION'); 
   }
 
   const project = await Project.findOne({
@@ -693,8 +729,6 @@ export const getProjectMembers = async (projectId, currentOrganizationId) => {
 
     let realRole = m.roleInProject;
     
-    if (m.userId.role === 'Admin') realRole = 'Admin';
-    else if (m.userId.role === 'Manager') realRole = 'Manager';
 
     return {
       _id: m._id, // Đây là membershipId (để xóa member khỏi project)
@@ -967,7 +1001,7 @@ export const joinProjectByCode = async (inviteCode, userId, currentOrganizationI
       projectId: project._id,
       userId,
       organizationId: targetOrgId,
-      roleInProject: "projectRole", // Role trong project
+      roleInProject: projectRole, // Role trong project
       status: "PENDING"
     }], { session });
     

@@ -13,6 +13,9 @@ import {
 } from '@heroicons/react/24/outline'; 
 import { useOutletContext } from 'react-router-dom';
 
+// ===> IMPORT CONTEXT <===
+import { useProject } from '../context/ProjectContext'; 
+
 import { LoaderOverlay } from '../components/LoaderOverlay';
 import TaskSummary from '../components/TaskSummary'; 
 import { CalendarDayCell } from '../components/CalendarDayCell';
@@ -93,6 +96,9 @@ const MeetingDetailModal = ({ isOpen, onClose, meeting, projects }) => {
 
 // --- MODAL TẠO MEETING ---
 const CreateMeetingModal = ({ isOpen, onClose, projects, onSuccess }) => {
+    // Lấy context để tự động chọn project mặc định
+    const { selectedProjectId } = useProject();
+    
     const [formData, setFormData] = useState({
         title: '', projectId: '', startTime: '', endTime: '', location: '', description: ''
     });
@@ -102,11 +108,19 @@ const CreateMeetingModal = ({ isOpen, onClose, projects, onSuccess }) => {
     useEffect(() => {
         if (isOpen) {
             setErrorMsg('');
-            if (projects.length > 0 && !formData.projectId) {
-                setFormData(prev => ({ ...prev, projectId: projects[0]._id }));
+            // Logic chọn project mặc định:
+            // 1. Nếu đang chọn project cụ thể ở Sidebar -> Lấy project đó
+            // 2. Nếu đang chọn "All Projects" -> Lấy project đầu tiên trong list
+            let defaultProjId = '';
+            if (selectedProjectId && selectedProjectId !== 'all') {
+                defaultProjId = selectedProjectId;
+            } else if (projects.length > 0) {
+                defaultProjId = projects[0]._id;
             }
+            
+            setFormData(prev => ({ ...prev, projectId: defaultProjId }));
         }
-    }, [isOpen, projects]);
+    }, [isOpen, projects, selectedProjectId]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -140,7 +154,13 @@ const CreateMeetingModal = ({ isOpen, onClose, projects, onSuccess }) => {
                 <form onSubmit={handleSubmit} className="space-y-4">
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Project</label>
-                        <select className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[var(--color-brand)] outline-none" value={formData.projectId} onChange={e => setFormData({...formData, projectId: e.target.value})} required>
+                        <select 
+                            className="w-full p-2.5 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-[var(--color-brand)] outline-none" 
+                            value={formData.projectId} 
+                            onChange={e => setFormData({...formData, projectId: e.target.value})} 
+                            required
+                            disabled={selectedProjectId !== 'all'} // Disable nếu đang ở view project cụ thể để tránh tạo nhầm
+                        >
                             {projects.map(p => <option key={p._id} value={p._id}>{p.name}</option>)}
                         </select>
                     </div>
@@ -330,9 +350,11 @@ const RightPanel = ({ selectedDate, dayEvents, myAttendance, onCheckInSuccess, o
 
 // --- MAIN PAGE ---
 const Calendar = () => {
-    // --- ĐÃ KHÔI PHỤC TaskSummary ---
     const { dynamicTasksSummary } = useOutletContext();
     
+    // ===> SỬ DỤNG CONTEXT PROJECT <===
+    const { selectedProjectId } = useProject(); 
+
     const [isLoading, setIsLoading] = useState(true);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -345,50 +367,61 @@ const Calendar = () => {
 
     const fetchData = useCallback(async () => {
         try {
-            // Lấy user từ LocalStorage để check role
             const userStr = localStorage.getItem('user');
             if (userStr) {
                 const user = JSON.parse(userStr);
                 setUserRole(user.role);
             }
 
-            const [projRes, attRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/projects`, { headers: getHeaders() }),
-                fetch(`${API_BASE_URL}/attendance/me`, { headers: getHeaders() })
-            ]);
-
+            // 1. Fetch List Projects (Để nạp vào dropdown modal create)
+            const projRes = await fetch(`${API_BASE_URL}/projects`, { headers: getHeaders() });
             const projData = await projRes.json();
-            const attData = await attRes.json();
-            
             const projectList = projData.data || [];
             setProjects(projectList);
+
+            // 2. Fetch Attendance (Cá nhân, không phụ thuộc project)
+            const attRes = await fetch(`${API_BASE_URL}/attendance/me`, { headers: getHeaders() });
+            const attData = await attRes.json();
             setMyAttendance(attData.data || []);
 
-            if (projectList.length > 0) {
-                const meetingPromises = projectList.map(p => 
-                    fetch(`${API_BASE_URL}/projects/${p._id}/meetings`, { headers: getHeaders() })
-                        .then(r => r.json())
-                        .then(d => d.data || []).catch(() => [])
-                );
-                const meetingsResults = await Promise.all(meetingPromises);
-                setAllMeetings(meetingsResults.flat());
+            // 3. ===> FETCH MEETINGS THEO CONTEXT <===
+            let meetingsUrl = `${API_BASE_URL}/meetings`; // Mặc định: Lấy hết
+            
+            if (selectedProjectId && selectedProjectId !== 'all') {
+                meetingsUrl = `${API_BASE_URL}/projects/${selectedProjectId}/meetings`;
             }
-            setIsLoading(false);
-        } catch (error) { console.error("Fetch error:", error); setIsLoading(false); }
-    }, []);
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+            const meetingRes = await fetch(meetingsUrl, { headers: getHeaders() });
+            const meetingData = await meetingRes.json();
+            
+            // Xử lý dữ liệu trả về (Data có thể là mảng trực tiếp hoặc nằm trong field data)
+            let meetings = meetingData.data || [];
+            if (!Array.isArray(meetings) && Array.isArray(meetingData)) {
+                meetings = meetingData;
+            }
+            
+            setAllMeetings(meetings);
+            setIsLoading(false);
+        } catch (error) { 
+            console.error("Fetch error:", error); 
+            setIsLoading(false); 
+        }
+    }, [selectedProjectId]); // <--- Rerun khi đổi dự án
+
+    useEffect(() => { 
+        setIsLoading(true);
+        fetchData(); 
+    }, [fetchData]);
 
     const selectedDayEvents = allMeetings.filter(m => normalizeDate(m.startTime) === normalizeDate(selectedDate));
     
-    // Kiểm tra quyền: Admin hoặc Manager được tạo
+    // Check quyền tạo meeting (Admin/Manager)
     const canCreateMeeting = ['Admin', 'Manager'].includes(userRole);
 
     if (isLoading) return <div className="flex-1 p-8 flex items-center justify-center"><LoaderOverlay /></div>;
 
     return (
         <div className="flex-1 p-6 md:p-8 bg-gray-50 min-h-screen font-sans flex flex-col">
-            {/* ĐÃ KHÔI PHỤC PHẦN SUMMARY */}
             <div className="mb-6"><TaskSummary summaryData={dynamicTasksSummary} /></div>
             
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-grow items-stretch">

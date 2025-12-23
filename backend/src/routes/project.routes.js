@@ -13,6 +13,8 @@ import {
   joinProjectByCode,
   getPendingRequests,
   toggleArchive,
+  removeProjectMember,
+  updateMemberRole,
   addMember
 } from "../controllers/project.controller.js";
 import { verifyToken, checkRole } from "../middlewares/auth.js";
@@ -102,5 +104,8 @@ router.get("/projects/:id/invite-code", verifyToken, checkRole("Admin", "Manager
  * @desc    Reset invite code
  */
 router.patch("/projects/:id/invite-code", verifyToken, checkRole("Admin", "Manager"), resetInviteCode);
-
+//  Xóa thành viên khỏi dự án
+router.delete('/projects/:id/members/:memberId', verifyToken, removeProjectMember);
+// Sửa Role thành viên trong dự án 
+router.put('/projects/:id/members/:userId', verifyToken, updateMemberRole);
 export default router;

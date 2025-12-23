@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState ,useEffect} from 'react';
 import { Link, useLocation } from 'react-router-dom';
-
+import { useProject } from '../context/ProjectContext';
 import logoUserFull from '../assets/images/syncora-official.png'; 
 import logoAdminFull from '../assets/images/syncora-admin.png';  
 import logoAdmin from '../assets/images/logoadmin.png'; 
@@ -16,7 +16,9 @@ import {
     Cog6ToothIcon, 
     FolderIcon, 
     BriefcaseIcon,  
-    UsersIcon,     
+    UsersIcon, 
+    ChevronUpDownIcon, 
+    CheckIcon
 } from '@heroicons/react/24/outline';
 
 // === MENU ITEMS ===
@@ -146,8 +148,80 @@ const SideBar = ({ unreadCount, basePath="" }) => {
                     />
                 ))}
             </nav>
+            <ProjectSwitcher isExpanded={isHovered} />
         </div>
     );
 }
+const ProjectSwitcher = ({ isExpanded }) => {
+    const { selectedProjectId, selectedProjectName, switchProject } = useProject();
+    const [projects, setProjects] = useState([]);
+    const [isOpen, setIsOpen] = useState(false);
 
+    // Fetch list dự án 1 lần khi mount
+    useEffect(() => {
+        const fetchProjects = async () => {
+            try {
+                // Gọi API lấy list project của user
+                const res = await fetch('http://localhost:4000/api/projects', {
+                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                });
+                const data = await res.json();
+                if(data.success) setProjects(data.data);
+            } catch (err) { console.error(err); }
+        };
+        fetchProjects();
+    }, []);
+
+    const handleSelect = (id, name) => {
+        switchProject(id, name);
+        setIsOpen(false);
+    };
+
+    return (
+        <div className="px-3 pb-4 mt-auto border-t border-gray-100 pt-3 relative">
+            <button 
+                onClick={() => setIsOpen(!isOpen)}
+                className={`flex items-center gap-3 w-full p-2 rounded-lg hover:bg-gray-50 transition-all border border-gray-200 ${!isExpanded ? 'justify-center' : ''}`}
+            >
+                <div className="w-8 h-8 rounded bg-[var(--color-brand)] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                    {selectedProjectName.substring(0, 2).toUpperCase()}
+                </div>
+                
+                {isExpanded && (
+                    <div className="flex-1 text-left overflow-hidden">
+                        <p className="text-xs text-gray-500 font-semibold">Current Workspace</p>
+                        <p className="text-sm font-bold text-gray-800 truncate">{selectedProjectName}</p>
+                    </div>
+                )}
+                
+                {isExpanded && <ChevronUpDownIcon className="w-5 h-5 text-gray-400" />}
+            </button>
+
+            {/* DROPDOWN MENU - Hiện ra khi bấm */}
+            {isOpen && (
+                <div className="absolute bottom-full left-3 w-60 bg-white rounded-xl shadow-2xl border border-gray-100 mb-2 p-2 z-[60] animate-in slide-in-from-bottom-2">
+                    <p className="px-2 py-1 text-xs font-bold text-gray-400 uppercase">Select Project</p>
+                    
+                    {/* Option All Projects */}
+                    <button onClick={() => handleSelect('all', 'All Projects')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 text-sm flex items-center justify-between">
+                        <span>All Projects</span>
+                        {selectedProjectId === 'all' && <CheckIcon className="w-4 h-4 text-green-600"/>}
+                    </button>
+
+                    <div className="h-px bg-gray-100 my-1"></div>
+
+                    {/* List Projects */}
+                    <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                        {projects.map(p => (
+                            <button key={p._id} onClick={() => handleSelect(p._id, p.name)} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 text-sm flex items-center justify-between group">
+                                <span className="truncate">{p.name}</span>
+                                {selectedProjectId === p._id && <CheckIcon className="w-4 h-4 text-green-600"/>}
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 export default SideBar;

@@ -32,6 +32,7 @@
     "nodemailer": "^7.0.11",
     "react-mentions": "^4.4.10",
     "react-toastify": "^11.0.5",
+    "socket.io": "^4.8.2",
     "stripe": "^20.0.0",
     "swagger-ui-express": "^5.0.1",
     "yamljs": "^0.3.0"

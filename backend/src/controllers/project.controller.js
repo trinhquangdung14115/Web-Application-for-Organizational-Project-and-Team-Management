@@ -3,7 +3,7 @@ import * as projectService from "../services/project.service.js";
 import { createNotification } from "../services/notification.service.js";
 import User from "../models/user.model.js"; 
 import { signToken } from "../utils/jwt.js"; 
-
+import ProjectMember from "../models/projectMember.model.js";
 // POST /projects
 export const createProject = async (req, res) => {
   try {
@@ -700,5 +700,59 @@ export const addMember = async (req, res) => {
         return res.status(403).json({ success: false, message: "User does not belong to this organization" });
     }
     res.status(500).json({ success: false, error: "ServerError", message: err.message });
+  }
+};
+
+// DELETE /projects/:id/members/:memberId
+export const removeProjectMember = async (req, res) => {
+  try {
+    const { id, memberId } = req.params; // id là projectId
+    const currentOrgId = req.user.currentOrganizationId;
+    
+    // memberId user gửi lên là userId (do mình đã fix ở FE)
+    // Gọi service để xóa
+    await projectService.removeMember(id, memberId, currentOrgId);
+
+    res.json({ success: true, message: "Member removed successfully" });
+  } catch (err) {
+    // Handle error permission từ service
+    if (err.message === 'FORBIDDEN_PROJECT_ACTION') {
+         return res.status(403).json({ success: false, message: "Forbidden: Only Manager/Admin can remove members" });
+    }
+    if (err.message === 'CANNOT_REMOVE_CREATOR') {
+         return res.status(400).json({ success: false, message: "Cannot remove project creator" });
+    }
+    res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+// PUT /projects/:id/members/:userId
+export const updateMemberRole = async (req, res) => {
+  try {
+    const { id, userId } = req.params;
+    const { role } = req.body; // "Manager" hoặc "Member"
+    const currentOrgId = req.user.currentOrganizationId;
+    const requestorId = req.user._id;
+
+    // 1. Check quyền người gọi (Phải là Admin/Manager dự án)
+    const hasPermission = await projectService.checkProjectPermission(id, requestorId, currentOrgId);
+    if (!hasPermission) {
+        return res.status(403).json({ success: false, message: "Forbidden: You don't have permission" });
+    }
+
+    // 2. Update DB trực tiếp (Nhanh gọn)
+    const updatedMember = await ProjectMember.findOneAndUpdate(
+        { projectId: id, userId: userId },
+        { roleInProject: role },
+        { new: true }
+    );
+
+    if (!updatedMember) {
+        return res.status(404).json({ success: false, message: "Member not found in project" });
+    }
+
+    res.json({ success: true, message: "Role updated successfully", data: updatedMember });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
   }
 };

@@ -18,7 +18,7 @@ import {
 } from "@ant-design/icons";
 // 🔵 THÊM MỚI: Import Service Dashboard (đã tạo ở bước trước)
 import dashboardService from "../services/dashboardService";
-
+import { useProject } from '../context/ProjectContext';
 // ==================================================================================
 // 🔵 AI DAILY WIDGET COMPONENT
 // ==================================================================================
@@ -154,7 +154,7 @@ const AIDailyWidget = ({ onClose }) => {
 
 
 const HomePage = () => {
-
+  const { selectedProjectId, selectedProjectName, switchProject } = useProject();
   const { dynamicTasksSummary } = useOutletContext();
   // 🔵 THÊM MỚI: State cho User Role và Dashboard Data mới
   const [user, setUser] = useState(null);
@@ -169,7 +169,6 @@ const HomePage = () => {
   // 🔵 STATE THÊM MỚI
   // ----------------------------------------------------------
   const [projects, setProjects] = useState([]);
-  const [currentProjectId, setCurrentProjectId] = useState(null);
   // ----------------------------------------------------------
 
   const [stats, setStats] = useState(null);
@@ -228,59 +227,36 @@ const HomePage = () => {
   }, [user]);
 
   // ----------------------------------------------------------
-  // 🔵 LOAD DANH SÁCH PROJECTS
-  // ----------------------------------------------------------
-  useEffect(() => {
-    const loadProjects = async () => {
-      try {
-        const list = await getProjects();
-        setProjects(list);
-
-        if (list.length > 0) {
-         // Ưu tiên lấy _id, nếu không có thì thử id (đề phòng backend trả về id ảo)
-         const firstId = list[0]._id || list[0].id; 
-         console.log(">>> Chọn Project ID mặc định:", firstId); // Log để kiểm tra
-         setCurrentProjectId(firstId);
-        }
-      } catch (error) {
-        console.error("Failed to load projects", error);
-      }
-    };
-
-    loadProjects();
-  }, []);
-  // ----------------------------------------------------------
 
   // ----------------------------------------------------------
   // 🔵 LOAD SUMMARY + ACTIVITY MỖI KHI currentProjectId THAY ĐỔI
   // ----------------------------------------------------------
   useEffect(() => {
-    if (!currentProjectId) return;
-
+    if (selectedProjectId === 'all' || !selectedProjectId) {
+        setStats(null);
+        setActivities([]);
+        return;
+    }
+    
     const fetchData = async () => {
       try {
         setLoading(true);
         const [summaryRes, activityRes] = await Promise.all([
-          axiosInstance.get(`/projects/${currentProjectId}/summary`),
-          axiosInstance.get(`/projects/${currentProjectId}/activities`)
+          axiosInstance.get(`/projects/${selectedProjectId}/summary`),
+          axiosInstance.get(`/projects/${selectedProjectId}/activities`)
         ]);
-
-        console.log(" Raw summaryRes:", summaryRes.data);
-        console.log(" Nested data:", summaryRes.data.data);
-        console.log(" tasksByStatus:", summaryRes.data.data?.tasksByStatus);
-
+        
         setStats(summaryRes.data.data);
         setActivities(activityRes.data.data || []);
-
       } catch (error) {
-        console.error("Error:", error.response?.data || error.message);
+        console.error("Error:", error);
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [currentProjectId]);
+  }, [selectedProjectId]);
   // ----------------------------------------------------------
 
 
@@ -293,59 +269,7 @@ const HomePage = () => {
     if (s === 'todo') return { color: '#fb923c', tailwind: 'bg-orange-400', label: 'Todo' };
     return { color: '#9ca3af', tailwind: 'bg-gray-400', label: status };
   };
-useEffect(() => {
-  if (!currentProjectId) return;
 
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [summaryRes, activityRes] = await Promise.all([
-        axiosInstance.get(`/projects/${currentProjectId}/summary`),
-        axiosInstance.get(`/projects/${currentProjectId}/activities`)
-      ]);
-
-      // Lưu đúng data nested
-      setStats(summaryRes.data.data);  // Lấy nested "data"
-      setActivities(activityRes.data.data || []);  // Lấy nested "data"
-
-      console.log("Stats loaded:", summaryRes.data.data);
-      console.log("Activities loaded:", activityRes.data.data);
-
-    } catch (error) {
-      console.error("Error loading dashboard data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchData();
-}, [currentProjectId]);useEffect(() => {
-  if (!currentProjectId) return;
-
-  const fetchData = async () => {
-    try {
-      setLoading(true);
-      const [summaryRes, activityRes] = await Promise.all([
-        axiosInstance.get(`/projects/${currentProjectId}/summary`),
-        axiosInstance.get(`/projects/${currentProjectId}/activities`)
-      ]);
-
-      //  Lưu đúng data nested
-      setStats(summaryRes.data.data);  // Lấy nested "data"
-      setActivities(activityRes.data.data || []);  // Lấy nested "data"
-
-      console.log("Stats loaded:", summaryRes.data.data);
-      console.log("Activities loaded:", activityRes.data.data);
-
-    } catch (error) {
-      console.error("Error loading dashboard data:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  fetchData();
-}, [currentProjectId]);
   const getPriorityConfig = (priority) => {
     const p = priority?.toLowerCase();
     if (p === 'high') return 'bg-red-500';
@@ -590,8 +514,11 @@ useEffect(() => {
                     <FolderIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                     <select
                       className="border border-gray-300 pl-9 px-2 py-2 rounded-lg appearance-none cursor-pointer bg-white"
-                      value={currentProjectId || ""}
-                      onChange={(e) => setCurrentProjectId(e.target.value)}
+                      value={selectedProjectId || ""}
+                      onChange={(e) => {
+                        const project = projects.find(p => p._id === e.target.value);
+                        switchProject(e.target.value, project?.name || 'Unknown Project');
+                      }}
                     >
                       {projects.map((p) => (
                         <option key={p._id} value={p._id}>{p.name}</option>
@@ -721,8 +648,11 @@ useEffect(() => {
                     <FolderIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                     <select
                       className="border border-gray-300 pl-9 px-2 py-2 rounded-lg appearance-none cursor-pointer bg-white"
-                      value={currentProjectId || ""}
-                      onChange={(e) => setCurrentProjectId(e.target.value)}
+                      value={selectedProjectId || ""}
+                      onChange={(e) => {
+                        const project = projects.find(p => p._id === e.target.value);
+                        switchProject(e.target.value, project?.name || 'Unknown Project');
+                      }}
                     >
                       {/* Thêm logic filter trước khi map */}
                       {projects
@@ -880,8 +810,11 @@ useEffect(() => {
                     <FolderIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
                     <select
                       className="border border-gray-300 pl-9 px-2 py-2 rounded-lg appearance-none cursor-pointer bg-white"
-                      value={currentProjectId || ""}
-                      onChange={(e) => setCurrentProjectId(e.target.value)}
+                      value={selectedProjectId || ""}
+                      onChange={(e) => {
+                        const project = projects.find(p => p._id === e.target.value);
+                        switchProject(e.target.value, project?.name || 'Unknown Project');
+                      }}
                     >
                       {projects.map((p) => (
                         <option key={p._id} value={p._id}>{p.name}</option>

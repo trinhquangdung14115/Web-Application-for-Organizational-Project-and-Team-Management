@@ -15,6 +15,7 @@ import TaskSummary from '../components/TaskSummary';
 import { getProjects, getProjectLabels } from '../services/projectService';
 import { getTasksByProject, updateTaskStatus, createTask, reorderTask, getProjectMembers } from '../services/taskService';
 import { useAuth } from '../services/AuthContext';
+import { useProject } from '../context/ProjectContext';
 
 // ===== Helper: Format Date =====
 const formatDate = (dateString) => {
@@ -108,102 +109,96 @@ const KanbanCard = ({ task, onOpenDetail }) => {
 
 // ===== MyTasks =====
 const MyTasks = () => {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-
-  const currentUser = {
-    id: user?.id || user?._id,
-    role: user?.role || 'Member',
-    name: user?.name || user?.fullname || 'User',
-  };
-
-  const roleUpper = (currentUser.role || '').toUpperCase();
-  const isManagerOrAdmin = ['ADMIN', 'MANAGER'].includes(roleUpper);
-  const canManageTasks = isManagerOrAdmin;
-
-  const canDragTask = (task) => {
-    //Manager/Admin có thể kéo thả tất cả
-    if (isManagerOrAdmin) return true;
-    if (!task.assigneeId || !currentUser.id ) return false;
-    return String(task.assigneeId) === String(currentUser.id);
-  };
-
-  const columns = [
-    { id: 'Backlog',      label: 'Backlog' },
-    { id: 'Todo',         label: 'Todo' },
-    { id: 'In Progress',  label: 'In Progress' },
-    { id: 'Done',         label: 'Done' },
-  ];
-
-  const [tasks, setTasks] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isEmpty, setIsEmpty] = useState(false);
-  const [error, setError] = useState(null);
+    const navigate = useNavigate();
+    const { user } = useAuth();
+    const { selectedProjectId, switchProject } = useProject();
+    
+    const isManagerOrAdmin = user?.role === 'Admin' || user?.role === 'Manager';
+    const canManageTasks = isManagerOrAdmin && selectedProjectId !== 'all';
+    
+    const currentUser = {
+        id: user?._id || user?.id,
+        name: user?.name || 'Unknown User',
+        role: user?.role || 'Member'
+    };
+    
+    const [projectsList, setProjectsList] = useState([]);
+    const [tasks, setTasks] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isEmpty, setIsEmpty] = useState(false);
+    const [error, setError] = useState(null);
   
-  // State quản lý dự án
-  const [projectsList, setProjectsList] = useState([]); // Danh sách tất cả dự án
-  const [currentProjectId, setCurrentProjectId] = useState(null); // ID dự án đang chọn
+    const [filters, setFilters] = useState({ label: '', assignee: '' });
+    const [projectMembers, setProjectMembers] = useState([]);
+    const [projectLabels, setProjectLabels] = useState([]);
+    const [isCreateOpen, setIsCreateOpen] = useState(false);
+    const [newTaskForm, setNewTaskForm] = useState({
+      title: '', description: '', assigneeId: '', assigneeName: '',
+      priority: 'MEDIUM', status: 'TODO', dueDate: '', labels: '',
+    });
+
+    // ✅ THÊM: Định nghĩa columns cho Kanban Board
+    const columns = [
+        { id: 'Backlog', label: 'Backlog' },
+        { id: 'Todo', label: 'Todo' },
+        { id: 'In Progress', label: 'In Progress' },
+        { id: 'Done', label: 'Done' }
+    ];
+
+    // ✅ THÊM: Hàm kiểm tra quyền kéo thả task
+    const canDragTask = (task) => {
+        // Admin & Manager có thể kéo thả mọi task
+        if (isManagerOrAdmin) return true;
+        
+        // Member chỉ kéo thả task của chính mình
+        return task.assigneeId === currentUser.id;
+    };
+
+    const STATUS_COLUMN_MAP = {
+      TODO: 'Todo',
+      DOING: 'In Progress',
+      DONE: 'Done',
+      BACKLOG: 'Backlog',
+    };
+
+    const STATUS_API_MAP = {
+      Backlog: 'BACKLOG',
+      Todo: 'TODO',
+      'In Progress': 'DOING',
+      Done: 'DONE',
+    };
+
   
-  const [filters, setFilters] = useState({ label: '', assignee: '' });
-  const [projectMembers, setProjectMembers] = useState([]);
-  const [projectLabels, setProjectLabels] = useState([]);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [newTaskForm, setNewTaskForm] = useState({
-    title: '', description: '', assigneeId: '', assigneeName: '',
-    priority: 'MEDIUM', status: 'TODO', dueDate: '', labels: '',
-  });
-
-  const STATUS_COLUMN_MAP = {
-    TODO: 'Todo',
-    DOING: 'In Progress',
-    DONE: 'Done',
-    BACKLOG: 'Backlog',
-  };
-
-  const STATUS_API_MAP = {
-    Backlog: 'BACKLOG',
-    Todo: 'TODO',
-    'In Progress': 'DOING',
-    Done: 'DONE',
-  };
-
-  // --- LOGIC MỚI: Tự động lấy dự án đầu tiên ---
+  // 1. FETCH PROJECTS
   useEffect(() => {
     const fetchProjects = async () => {
       try {
-        const projects = await getProjects();
-        console.log(" Danh sách Projects:", projects); 
+        const data = await getProjects();
+        setProjectsList(data || []);
         
-        // Lưu danh sách dự án vào state để render dropdown
-        setProjectsList(projects || []);
-
-        if (projects && projects.length > 0) {
-          // Lấy ID của dự án đầu tiên làm mặc định
-          const firstProjectId = projects[0]._id;
-          console.log(" Auto-select Project ID:", firstProjectId);
-          setCurrentProjectId(firstProjectId);
-        } else {
-          console.warn(" Không tìm thấy dự án nào.");
-          // Có thể set null hoặc xử lý trạng thái Empty State cho toàn trang
-          setIsEmpty(true);
+        // ✅ TỰ ĐỘNG CHỌN PROJECT ĐẦU TIÊN NẾU CHƯA CÓ
+        if (data && data.length > 0 && !selectedProjectId) {
+          switchProject(data[0]._id, data[0].name);
         }
       } catch (err) {
         console.error("Failed to load projects", err);
-        setError("Failed to load projects.");
       }
     };
     fetchProjects();
   }, []);
-  
+
   // 2. Lấy Members, Labels & Fill Dropdown
   useEffect(() => {
-     if (!currentProjectId) return;
-    const fetchMeta = async () => {
+    if (selectedProjectId === 'all') {
+         setTasks([]);
+         setProjectMembers([]);
+         return;
+    }    const fetchMeta = async () => {
         try {
             // Gọi song song Members và Labels
             const [members, labels] = await Promise.all([
-                getProjectMembers(currentProjectId),
-                getProjectLabels(currentProjectId) // Gọi API lấy label
+                getProjectMembers(selectedProjectId),
+                getProjectLabels(selectedProjectId) // Gọi API lấy label
             ]);
 
             const formattedMembers = members.map(m => ({
@@ -217,11 +212,11 @@ const MyTasks = () => {
         }
     }
     fetchMeta();
-  }, [currentProjectId]);
+  }, [selectedProjectId]);
 
   // 3. FETCH TASKS THẬT
   useEffect(() => {
-    if (!currentProjectId) return;
+    if (!selectedProjectId) return;
 
     const fetchTasks = async () => {
       try {
@@ -229,7 +224,7 @@ const MyTasks = () => {
         setError(null);
 
         // Gọi API lấy dữ liệu (có thể API trả về tất cả task mà chưa lọc kỹ)
-        const apiTasks = await getTasksByProject(currentProjectId, filters);
+        const apiTasks = await getTasksByProject(selectedProjectId, filters);
 
         // === THÊM ĐOẠN CODE LỌC TẠI ĐÂY (CLIENT-SIDE FILTER) ===
         // Ta tạo một biến trung gian để lọc dữ liệu thô trước khi normalize
@@ -288,7 +283,7 @@ const MyTasks = () => {
     };
 
     fetchTasks();
-  }, [currentProjectId, navigate, filters]); // Giữ nguyên dependency filters để useEffect chạy lại khi chọn dropdown
+  }, [selectedProjectId, navigate, filters]); // Giữ nguyên dependency filters để useEffect chạy lại khi chọn dropdown
 
   // Drag & Drop
   const handleDragEnd = async ({ source, destination, draggableId }) => {
@@ -355,8 +350,14 @@ const MyTasks = () => {
   const openCreateModal = (statusColumn = 'Todo') => {
     if (!canManageTasks) return;
     setNewTaskForm({
-      title: '', description: '', assigneeId: currentUser.id, assigneeName: currentUser.name,
-      priority: 'MEDIUM', status: STATUS_API_MAP[statusColumn] || 'TODO', dueDate: '', labels: '',
+      title: '', 
+      description: '', 
+      assigneeId: currentUser.id, 
+      assigneeName: currentUser.name, // ✅ SỬA: Dùng currentUser thay vì user trực tiếp
+      priority: 'MEDIUM', 
+      status: STATUS_API_MAP[statusColumn] || 'TODO', 
+      dueDate: '', 
+      labels: '',
     });
     setIsCreateOpen(true);
   };
@@ -375,7 +376,7 @@ const MyTasks = () => {
         labels: newTaskForm.labels ? newTaskForm.labels.split(',').map(s => s.trim()) : [],
       };
 
-      const created = await createTask(currentProjectId, payload);
+      const created = await createTask(selectedProjectId, payload);
       
       const uiTask = {
         id: created._id,
@@ -432,26 +433,7 @@ const MyTasks = () => {
           {/* --- [MỚI] PROJECT SELECTOR --- */}
           {/* Thay vì hardcode, ta cho phép user chọn dự án tại đây */}
           
-          <div className="relative">
-            <FolderIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-            <select
-                className="appearance-none pl-9 pr-8 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-800  focus:ring-2  outline-none shadow-sm cursor-pointer hover:bg-gray-50 min-w-[180px]"
-                value={currentProjectId || ''}
-                onChange={(e) => setCurrentProjectId(e.target.value)}
-                disabled={projectsList.length === 0}
-            >
-                {projectsList.length === 0 ? (
-                    <option>No projects</option>
-                ) : (
-                    projectsList.map((p) => (
-                        <option key={p._id} value={p._id}>
-                            {p.name}
-                        </option>
-                    ))
-                )}
-            </select>
-            <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none" />
-          </div>
+        
           
 
           
