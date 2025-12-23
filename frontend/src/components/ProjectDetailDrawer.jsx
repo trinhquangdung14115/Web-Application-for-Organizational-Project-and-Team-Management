@@ -5,10 +5,13 @@ import {
     UsersIcon, 
     CalendarDaysIcon,
     BriefcaseIcon,
-    ClockIcon 
+    ClockIcon,
+    ChatBubbleLeftRightIcon 
 } from '@heroicons/react/24/outline';
 import ReactECharts from 'echarts-for-react'; 
 import { formatDistanceToNow } from 'date-fns';
+import ChatBox from './ChatBox'; 
+import { useAuth } from '../services/AuthContext'; 
 
 const API_BASE_URL = 'http://localhost:4000/api';
 
@@ -248,9 +251,14 @@ const ProjectMembersTab = ({ projectId }) => {
 // --- MAIN DRAWER COMPONENT (MODAL STYLE) ---
 const ProjectDetailDrawer = ({ isOpen, onClose, project }) => {
     const [activeTab, setActiveTab] = useState('dashboard'); 
+    const { user } = useAuth(); // Lấy user hiện tại
+    const [isChatOpen, setIsChatOpen] = useState(false); // State quản lý bật tắt chat box
 
     useEffect(() => {
-        if (isOpen) setActiveTab('dashboard');
+        if (isOpen) {
+            setActiveTab('dashboard');
+            setIsChatOpen(false); // Reset chat khi mở project mới
+        }
     }, [isOpen, project]);
 
     if (!isOpen || !project) return null;
@@ -277,9 +285,26 @@ const ProjectDetailDrawer = ({ isOpen, onClose, project }) => {
                         </h2>
                         <p className="text-gray-500 mt-2 ml-1 text-sm max-w-2xl line-clamp-2">{project.description || 'No description provided for this project.'}</p>
                     </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition-colors">
-                        <XMarkIcon className="w-8 h-8" />
-                    </button>
+
+                    {/* ACTIONS: CHAT & CLOSE */}
+                    <div className="flex items-center gap-2">
+                        {/* Nút Chat cho Admin (hoặc hiển thị cho tất cả nếu muốn) 
+                            Logic ở đây: Nếu là Admin -> Hiện nút này vì Admin ko có Navbar Chat
+                        */}
+                        {user?.role === 'Admin' && (
+                            <button 
+                                onClick={() => setIsChatOpen(!isChatOpen)}
+                                className={`p-2 rounded-full transition-colors flex items-center gap-2 px-4 border ${isChatOpen ? 'bg-blue-50 border-blue-200 text-blue-600' : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'}`}
+                            >
+                                <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                                <span className="text-sm font-bold">Project Chat</span>
+                            </button>
+                        )}
+
+                        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-full transition-colors">
+                            <XMarkIcon className="w-8 h-8" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Tabs */}
@@ -305,7 +330,17 @@ const ProjectDetailDrawer = ({ isOpen, onClose, project }) => {
                 </div>
 
                 {/* Content Area */}
-                <div className="flex-1 overflow-hidden p-8 bg-gray-50/50">
+                <div className="flex-1 overflow-hidden p-8 bg-gray-50/50 relative"> 
+                    {/* Render ChatBox đè lên content nếu đang mở */}
+                    {isChatOpen && (
+                        <ChatBox 
+                            projectId={project.id || project._id}
+                            projectName={project.name}
+                            currentUser={user}
+                            onClose={() => setIsChatOpen(false)}
+                        />
+                    )}
+
                     {activeTab === 'dashboard' ? (
                         <ProjectDashboardTab projectId={project.id || project._id} />
                     ) : (
