@@ -1,20 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; 
 import { 
     ChevronDownIcon, 
     ArrowRightEndOnRectangleIcon, 
     UserCircleIcon,
-    SparklesIcon 
+    SparklesIcon,
+    ChatBubbleLeftRightIcon 
 } from '@heroicons/react/24/outline';
 import NotificationBell from './NotificationBell'; 
 import JoinRequestBell from './JoinRequestBell';
+import ChatBox from './ChatBox'; 
 import { useAuth } from '../services/AuthContext'; 
-import axiosInstance from '../services/api'; // Import để gọi API thanh toán
+import axiosInstance from '../services/api'; 
+import io from 'socket.io-client'; 
+
+const SOCKET_URL = 'http://localhost:4000'; // URL Server Socket
 
 // === TÁCH HEADERICONS VÀ NHẬN PROPS ===
 const HeaderIcons = ({ unreadCount, onLogout }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const { user } = useAuth(); // Lấy user từ Context
+    const { user } = useAuth(); 
     
+    // --- State Chat Mới Thêm ---
+    const [isOpenChat, setIsOpenChat] = useState(false); 
+    const [currentProject, setCurrentProject] = useState(null); 
+    const [chatNotificationCount, setChatNotificationCount] = useState(0); 
+    
+    // Refs cho Chat
+    const socketRef = useRef(null);
+    const isOpenChatRef = useRef(isOpenChat);
+
     // 1. Lấy thông tin Org từ localStorage để check Plan
     const storedOrg = localStorage.getItem("organization");
     const currentOrg = storedOrg ? JSON.parse(storedOrg) : null;
@@ -23,9 +37,80 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
     const isFreeAdmin = user?.role === 'Admin' && currentOrg?.plan === 'FREE';
 
     const canManageRequests = ['Admin', 'Manager'].includes(user?.role);
+    const showNavbarChat = user?.role === 'Manager' || user?.role === 'Member'; // Logic hiện chat
+
     const initials = user?.name
         ? user.name.split(" ").map(word => word[0]).join("").toUpperCase()
         : "??";
+
+    // --- Đồng bộ Ref cho Chat ---
+    useEffect(() => {
+        isOpenChatRef.current = isOpenChat;
+        if (isOpenChat) setChatNotificationCount(0);
+    }, [isOpenChat]);
+
+    // --- Lấy Project mặc định (Chạy ngầm) ---
+    useEffect(() => {
+        if (!showNavbarChat) return;
+
+        const fetchProject = async () => {
+            try {
+                const res = await axiosInstance.get('/projects');
+                if (res.data.success && res.data.data.length > 0) {
+                    // Mặc định lấy project đầu tiên
+                    setCurrentProject(res.data.data[0]);
+                }
+            } catch (err) {
+                console.error("Error fetching projects for chat:", err);
+            }
+        };
+        fetchProject();
+    }, [showNavbarChat]);
+
+    // --- Socket Connection ---
+    useEffect(() => {
+        if (!user || !currentProject) return;
+        const token = localStorage.getItem('token');
+        if (!token) return;
+
+        // Init socket nếu chưa có
+        if (!socketRef.current || !socketRef.current.connected) {
+            socketRef.current = io(SOCKET_URL, {
+                auth: { token },
+                transports: ['websocket'],
+                reconnection: true,
+            });
+        }
+
+        const socket = socketRef.current;
+
+        const handleConnect = () => {
+            if (currentProject?._id) socket.emit('join_project', currentProject._id);
+        };
+
+        const handleReceiveMessage = (msg) => {
+            const myId = String(user._id || user.id);
+            const senderId = String(msg.senderId?._id || msg.senderId);
+
+            // Nếu người gửi khác mình VÀ chat đang đóng -> Tăng thông báo
+            if (senderId !== myId && !isOpenChatRef.current) {
+                setChatNotificationCount(prev => prev + 1);
+            }
+        };
+
+        socket.off('connect', handleConnect);
+        socket.off('receive_message', handleReceiveMessage);
+        
+        socket.on('connect', handleConnect);
+        socket.on('receive_message', handleReceiveMessage);
+
+        if (socket.connected) handleConnect();
+
+        return () => {
+            socket.off('connect', handleConnect);
+            socket.off('receive_message', handleReceiveMessage);
+        };
+    }, [currentProject, user]);
 
     // 3. Hàm xử lý khi bấm nút Upgrade
     const handleUpgrade = async () => {
@@ -42,9 +127,16 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
         }
     };
 
+    // Hàm toggle chat
+    const toggleChat = () => {
+        if (currentProject) {
+            setIsOpenChat(prev => !prev);
+        }
+    };
+
     return (
         <div className="flex space-x-4 items-center">
-            {/* BUTTON UPGRADE TO PREMIUM (Mới thêm) */}
+            {/* BUTTON UPGRADE TO PREMIUM */}
             {isFreeAdmin && (
                 <button
                     onClick={handleUpgrade}
@@ -55,7 +147,44 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
                 </button>
             )}
 
-            {/* JOIN REQUEST BELL - CHỈ HIỆN CHO ADMIN/MANAGER */}
+            {/* --- BUTTON CHAT & BADGE --- */}
+            {showNavbarChat && (
+                <div className="relative">
+                    <button 
+                        onClick={toggleChat}
+                        // Disable nếu chưa load xong project
+                        disabled={!currentProject}
+                        className={`relative p-2 rounded-full transition-all duration-300 
+                            ${!currentProject ? 'opacity-50 cursor-wait' : 'opacity-100 cursor-pointer'}
+                            ${isOpenChat ? 'bg-blue-50 text-[var(--color-brand)]' : 'text-gray-400 hover:text-[var(--color-brand)] hover:bg-gray-100'}
+                        `}
+                        title={currentProject ? `Chat: ${currentProject.name}` : "Loading chat..."}
+                    >
+                        <ChatBubbleLeftRightIcon className="w-6 h-6" />
+                        
+                        {/* Badge thông báo đỏ */}
+                        {currentProject && !isOpenChat && chatNotificationCount > 0 && (
+                            <div className="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4 z-10">
+                                <span className="flex items-center justify-center w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white shadow-sm animate-pulse">
+                                    {chatNotificationCount > 99 ? '99+' : chatNotificationCount}
+                                </span>
+                            </div>
+                        )}
+                    </button>
+                    
+                    {/* Component ChatBox */}
+                    {isOpenChat && currentProject && (
+                        <ChatBox 
+                            projectId={currentProject._id} 
+                            projectName={currentProject.name} 
+                            currentUser={user}
+                            onClose={() => setIsOpenChat(false)} 
+                        />
+                    )}
+                </div>
+            )}
+
+            {/* JOIN REQUEST BELL */}
             {canManageRequests && <JoinRequestBell />}
             
             {/* NOTIFICATION BELL */}
@@ -112,7 +241,7 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
                             <UserCircleIcon className="w-5 h-5" />
                             Profile
                         </a>
-                        
+
                         {/* Nút Logout */}
                         <button
                             onClick={onLogout}

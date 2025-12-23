@@ -1008,7 +1008,7 @@ useEffect(() => {
       {/* Floating Action Button (Giữ nguyên) */}
       <button
         onClick={() => setShowAIBrief(!showAIBrief)}
-        className="fixed bottom-6 right-6 z-50 p-5 bg-gradient-to-r from-[#3b064d] to-[#f35640] text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 group ring-4 ring-white/50"
+        className="fixed bottom-6 left-6 z-50 p-5 bg-gradient-to-r from-[#3b064d] to-[#f35640] text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 group ring-4 ring-white/50"
         title="AI Daily Brief"
       >
         {showAIBrief ? (
