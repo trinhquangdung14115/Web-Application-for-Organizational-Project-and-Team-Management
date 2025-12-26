@@ -7,6 +7,15 @@ dotenv.config();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+const PLAN_CONFIG = {
+  'PREMIUM': {
+    name: "Premium Plan Upgrade",
+    description: "Unlock unlimited projects and AI features",
+    amount: 2000, 
+    currency: "usd" 
+  },
+};
+
 /**
  * @desc    Create Stripe Checkout Session (Get Payment Link)
  * @route   POST /payment/session
@@ -16,6 +25,16 @@ export const createCheckoutSession = async (req, res) => {
   try {
     const userId = req.user._id;
     const userEmail = req.user.email;
+    const { planName = 'PREMIUM' } = req.body; 
+
+    // Validate Plan
+    const selectedPlan = PLAN_CONFIG[planName];
+    if (!selectedPlan) {
+      return res.status(400).json({ 
+        success: false, 
+        message: `Invalid plan name. Available plans: ${Object.keys(PLAN_CONFIG).join(', ')}` 
+      });
+    }
 
     const session = await stripe.checkout.sessions.create({
       payment_method_types: ["card"],
@@ -25,12 +44,12 @@ export const createCheckoutSession = async (req, res) => {
       line_items: [
         {
           price_data: {
-            currency: "usd",
+            currency: selectedPlan.currency,
             product_data: {
-              name: "Pro Plan Upgrade",
-              description: "Unlock Admin features.",
+              name: selectedPlan.name,
+              description: selectedPlan.description,
             },
-            unit_amount: 2000, // $20.00
+            unit_amount: selectedPlan.amount, 
           },
           quantity: 1,
         },
@@ -38,6 +57,7 @@ export const createCheckoutSession = async (req, res) => {
 
       metadata: {
         userId: userId.toString(), 
+        targetPlan: planName 
       },
 
       success_url: `${process.env.CLIENT_URL || "http://localhost:5173"}/payment/success`,
@@ -74,21 +94,21 @@ export const handleWebhook = async (req, res) => {
     console.error(`Webhook Signature Error: ${err.message}`);
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
+  
   if (event.type === "checkout.session.completed") {
-    
-    // 1.  Phải lấy session và userId từ event trước
     const session = event.data.object;
     const userId = session.metadata.userId;
+    const targetPlan = session.metadata.targetPlan || "PREMIUM";
 
-    console.log(`Payment success for User ID: ${userId}`);
+    console.log(`Payment success for User ID: ${userId} - Plan: ${targetPlan}`);
 
     try {
       const user = await User.findById(userId);
       if (user && user.currentOrganizationId) {
           await Organization.findByIdAndUpdate(user.currentOrganizationId, { 
-              plan: "PREMIUM" 
+              plan: targetPlan 
           });
-          console.log(`Organization ${user.currentOrganizationId} upgraded to PREMIUM`);
+          console.log(`Organization ${user.currentOrganizationId} upgraded to ${targetPlan}`);
 
           if (user.role !== "Admin") {
               user.role = "Admin";
