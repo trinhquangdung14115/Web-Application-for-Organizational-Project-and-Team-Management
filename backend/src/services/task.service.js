@@ -3,6 +3,7 @@ import Task from "../models/task.model.js";
 import Project from "../models/project.model.js";
 import ActivityLog from "../models/activityLog.model.js";
 import AIService from "../services/ai.service.js";
+import Label from "../models/label.model.js";
 
 export const getTasksByProject = async (projectId) => {
   const projectExists = await Project.findById(projectId);
@@ -13,7 +14,8 @@ export const getTasksByProject = async (projectId) => {
   const tasks = await Task.find({ projectId, deletedAt: null })
     .sort({ orderIndex: 1 })
     .populate("assigneeId", "name email role")
-    .populate("projectId", "name");
+    .populate("projectId", "name")
+    .populate("labels", "name color");
 
   return tasks;
 };
@@ -28,7 +30,8 @@ export const getFilteredTasks = async (filters) => {
   const tasks = await Task.find(query)
     .sort({ orderIndex: 1 })
     .populate("assigneeId", "name email role")
-    .populate("projectId", "name");
+    .populate("projectId", "name")
+    .populate("labels", "name color");
       
   return tasks;
 };
@@ -40,7 +43,8 @@ export const getTaskById = async (taskId) => {
 
   const task = await Task.findById(taskId)
     .populate("assigneeId", "name email role")
-    .populate("projectId", "name");
+    .populate("projectId", "name")
+    .populate("labels", "name color");
 
   if (!task || task.deletedAt) {
     throw new Error('TASK_NOT_FOUND');
@@ -122,6 +126,43 @@ export const updateTask = async (taskId, updateData, currentUser) => {
       throw new Error('FORBIDDEN_FIELD_UPDATE');
     }
   }
+
+  if (updateData.labels && Array.isArray(updateData.labels)) {
+    const labelIds = [];
+    
+    for (const labelName of updateData.labels) {
+        // 1. Tìm xem nhãn đã tồn tại trong Project này chưa
+        let label = await Label.findOne({ 
+            name: labelName, 
+            projectId: task.projectId 
+        });
+
+        // 2. Nếu chưa có thì tạo mới
+        if (!label) {
+          // Ưu tiên lấy Org của Task, nếu Task cũ không có thì lấy Org của User đang sửa
+          const orgId = task.organizationId || currentUser.currentOrganizationId || currentUser.organizationId;
+          
+          if (!orgId) {
+              throw new Error("Cannot create label: Missing Organization ID");
+          }
+
+          label = await Label.create({ 
+              name: labelName, 
+              projectId: task.projectId,
+              
+              // --- SỬA THÀNH BIẾN orgId VỪA TÌM ĐƯỢC ---
+              organizationId: orgId, 
+              // ------------------------------------------
+              
+              color: "#" + Math.floor(Math.random()*16777215).toString(16) 
+          });
+      }
+        // 3. Đẩy ID của nhãn vào danh sách
+        labelIds.push(label._id);
+    }
+    // 4. Thay thế mảng chuỗi bằng mảng ID để lưu vào DB
+    updateData.labels = labelIds;
+}
 
   const updatedTask = await Task.findByIdAndUpdate(taskId, updateData, { new: true });
 

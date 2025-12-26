@@ -221,6 +221,39 @@ export const generateAiSubtasks = async (taskId) => {
   }
 };
 
+// ======= Attachments ========
+
+/**
+ * thêm attachment vào task
+ * @param {string} taskId
+ * @param {object} attachmentData - { name: string, url: string}
+ */
+
+export const addAttachment = async (taskId, attachmentData) => {
+  try {
+    const response = await axiosInstance.post(`/tasks/${taskId}/attachments`, attachmentData);
+    return response.data.data;
+  } catch (error) {
+    console.error("Error adding attachment:", error);
+    throw error.response?.data || { error: { message: "Failed to add attachment" } };
+  }
+};
+
+/**
+ * xóa attachment khỏi task
+ * @param {string} taskId
+ * @param {string} attachmentId
+ */
+export const removeAttachment = async (taskId, attachmentId) => {
+  try {
+    const response = await axiosInstance.delete(`/tasks/${taskId}/attachments/${attachmentId}`);
+    return response.data.data;
+  } catch (error) {
+    console.error("Error removing attachment:", error);
+    throw error.response?.data || { error: { message: "Failed to remove attachment" } };
+  }
+};
+
 export default {
   getTasksByProject,
   createTask,
@@ -238,4 +271,7 @@ export default {
   toggleSubtask,
   deleteSubtask,
   generateAiSubtasks,
+  //attachments
+  addAttachment,
+  removeAttachment
 };
