@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Attendance from "../models/attendance.model.js";
 import Organization from "../models/organization.model.js";
 import User from "../models/user.model.js";
+import ProjectMember from "../models/projectMember.model.js";
 /**
  * @desc    Get client IP address
  * @param   {Request} req
@@ -409,7 +410,7 @@ export const getWhitelistIPs = async (req, res) => {
     }
 
     const user = await User.findById(userId).select("currentOrganizationId");
-    if (!user || !user.organizationId) {
+    if (!user || !user.currentOrganizationId) {
       return res.status(400).json({
         success: false,
         error: "ValidationError",
@@ -508,40 +509,39 @@ export const getMyAttendanceToday = async (req, res) => {
 export const getProjectAttendance = async (req, res) => {
   try {
     const currentUser = req.user;
-    const { startDate, endDate, userId } = req.query;
+    const { startDate, endDate, userId, projectId } = req.query;
 
-    const requestUser = await User.findById(currentUser._id).select("organizationId role");
-    const orgId = requestUser.organizationId;
-
-
-    if (!orgId) {
-        return res.status(400).json({ success: false, message: "No Organization Context" });
+    // 1. Lấy Organization Context
+    const requestUser = await User.findById(currentUser._id).select("currentOrganizationId role");
+    if (!requestUser || !requestUser.currentOrganizationId) {
+        return res.status(400).json({ success: false, message: "No Organization Context." });
     }
+    const orgId = requestUser.currentOrganizationId;
 
-    const query = {organizationId: orgId};
-
-    // Check permissions (only Admin/Manager can view all attendance)
+    // 2. Check quyền
     const userRole = req.user.role;
-
     if (userRole !== "Admin" && userRole !== "Manager") {
-      return res.status(403).json({
-        success: false,
-        error: "ForbiddenError",
-        message: "Only Admin or Manager can view project attendance",
-      });
+      return res.status(403).json({ success: false, error: "ForbiddenError", message: "Access denied" });
     }
 
-
-    if (userId) {
-      if (!mongoose.Types.ObjectId.isValid(userId)) {
-        return res.status(400).json({
-          success: false,
-          error: "ValidationError",
-          message: "Invalid user ID format",
-        });
-      }
-      query.userId = userId;
+    // 3. Xác định danh sách User cần lấy
+    let targetUserIds = [];
+    if (projectId && projectId !== 'all') {
+        if (!mongoose.Types.ObjectId.isValid(projectId)) {
+             return res.status(400).json({ success: false, message: "Invalid Project ID" });
+        }
+        const projectMembers = await ProjectMember.find({ projectId, organizationId: orgId, status: 'ACTIVE' });
+        targetUserIds = projectMembers.map(pm => pm.userId);
+    } else {
+        const orgUsers = await User.find({ currentOrganizationId: orgId }).select("_id");
+        targetUserIds = orgUsers.map(u => u._id);
     }
+
+    // Lấy thông tin user
+    const usersData = await User.find({ _id: { $in: targetUserIds } }).select("name email role avatar");
+
+    // 4. Query Attendance
+    const query = { organizationId: orgId, userId: { $in: targetUserIds } };
 
     if (startDate || endDate) {
       query.checkInTime = {};
@@ -553,21 +553,56 @@ export const getProjectAttendance = async (req, res) => {
       }
     }
 
-    const attendances = await Attendance.find(query)
-      .populate("userId", "name email role")
-      .sort({ checkInTime: -1 });
+    const attendanceRecords = await Attendance.find(query).sort({ checkInTime: 1 });
 
-    res.json({
-      success: true,
-      count: attendances.length,
-      data: attendances,
+    // 5. TỔNG HỢP DỮ LIỆU CHI TIẾT
+    const reportData = usersData.map(member => {
+        const userRecords = attendanceRecords.filter(
+            record => record.userId.toString() === member._id.toString()
+        );
+
+        let present = 0;
+        let lateDates = [];   // 🟢 Lưu chi tiết ngày + giờ muộn
+        let absentDates = []; // 🟢 Lưu chi tiết ngày nghỉ
+
+        userRecords.forEach(rec => {
+            // Format ngày: DD/MM/YYYY
+            const dateStr = new Date(rec.checkInTime).toLocaleDateString('en-GB'); 
+            // Format giờ: HH:MM AM/PM
+            const timeStr = new Date(rec.checkInTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+            if (rec.status === 'LATE') {
+                // Thêm vào danh sách muộn kèm giờ
+                lateDates.push({ date: dateStr, time: timeStr, note: rec.note });
+            } 
+            else if (rec.status === 'ABSENT') {
+                // Thêm vào danh sách nghỉ
+                absentDates.push({ date: dateStr, note: rec.note });
+            } 
+            else {
+                present++;
+            }
+        });
+
+        return {
+            userId: member._id,
+            name: member.name,
+            email: member.email,
+            avatar: member.avatar,
+            present,
+            late: lateDates.length,
+            lateDetails: lateDates,     // Trả về mảng chi tiết
+            absent: absentDates.length,
+            absentDetails: absentDates, // Trả về mảng chi tiết
+            totalCheckins: userRecords.length
+        };
     });
+
+    res.json({ success: true, count: reportData.length, data: reportData });
+
   } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: "ServerError",
-      message: err.message,
-    });
+    console.error("Report Error:", err);
+    res.status(500).json({ success: false, error: "ServerError", message: err.message });
   }
 };
 
@@ -699,7 +734,7 @@ export const removeWhitelistIP = async (req, res) => {
     const organization = await Organization.findById(user.currentOrganizationId);
     
     // 3. Xóa IP khỏi mảng allowedIps
-    organization.allowedIps.pull({ _id: ipId });
+    organization.allowedIps.pull({ _id: new mongoose.Types.ObjectId(ipId) });
     
     await organization.save();
 
