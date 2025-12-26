@@ -7,48 +7,49 @@ import {
   deleteMeeting,
 } from "../controllers/meeting.controller.js";
 import { verifyToken, checkRole, requireOrgAccess } from "../middlewares/auth.js";
+import { requireProjectMember, requireProjectManager } from "../middlewares/project.auth.js";
 
 const router = express.Router();
 
 /**
  * @route   GET /projects/:projectId/meetings
  * @desc    Get all meetings for a project
- * @access  Private - Requires organization context
+ * @access  Private (Project Member)
  */
-router.get("/projects/:projectId/meetings", verifyToken, requireOrgAccess, getMeetings);
+router.get("/projects/:projectId/meetings", verifyToken, requireOrgAccess, requireProjectMember, getMeetings);
 
 /**
  * @route   GET /meetings/:id
  * @desc    Get single meeting details
- * @access  Private - Requires organization context
+ * @access  Private (Project Member)
  */
-router.get("/meetings/:id", verifyToken, requireOrgAccess, getMeeting);
+router.get("/meetings/:id", verifyToken, requireOrgAccess, requireProjectMember, getMeeting);
 
 /**
  * @route   POST /projects/:projectId/meetings
  * @desc    Create new meeting (with time conflict validation)
- * @access  Private (Admin/Manager) - Requires organization context
+ * @access  Private (Project Manager/Admin)
  */
 router.post(
   "/projects/:projectId/meetings",
   verifyToken,
   requireOrgAccess,
-  checkRole("Admin", "Manager"),
+  requireProjectManager,
   createMeeting
 );
 
 /**
  * @route   PATCH /meetings/:id
  * @desc    Update meeting
- * @access  Private (Admin/Manager/Creator) - Requires organization context
+ * @access  Private (Project Manager/Admin)
  */
-router.patch("/meetings/:id", verifyToken, requireOrgAccess, updateMeeting);
+router.patch("/meetings/:id", verifyToken, requireOrgAccess, requireProjectManager, updateMeeting);
 
 /**
  * @route   DELETE /meetings/:id
  * @desc    Delete meeting (soft delete)
- * @access  Private (Admin/Manager/Creator) - Requires organization context
+ * @access  Private (Project Manager/Admin)
  */
-router.delete("/meetings/:id", verifyToken, requireOrgAccess, deleteMeeting);
+router.delete("/meetings/:id", verifyToken, requireOrgAccess, requireProjectManager, deleteMeeting);
 
 export default router;

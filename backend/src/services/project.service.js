@@ -468,16 +468,18 @@ export const addMember = async (projectId, userId, role = "Member", currentOrgan
 
   // Check if user exists
   const user = await User.findById(userId);
-  if (!user.organizations.includes(currentOrganizationId)) {
-    throw new Error('USER_NOT_BELONG_TO_ORGANIZATION');
-}
-
+  
   if (!user) {
     throw new Error('USER_NOT_FOUND');
   }
 
+  if (!user.organizations.includes(currentOrganizationId)) {
+    throw new Error('USER_NOT_BELONG_TO_ORGANIZATION');
+  }
+
   // Add member to ProjectMember table
   await ProjectMember.create({
+    organizationId: currentOrganizationId, // FIX: Thiếu organizationId
     projectId,
     userId,
     roleInProject: role,
@@ -489,25 +491,29 @@ export const addMember = async (projectId, userId, role = "Member", currentOrgan
 
 /**
  * Remove member from project
+ * @param {string} projectId - ID của dự án
+ * @param {string} targetUserId - ID của user BỊ XÓA
+ * @param {string} requestorId - ID của user THỰC HIỆN XÓA
+ * @param {string} currentOrganizationId - ID của organization hiện tại
  */
-export const removeMember = async (projectId, userId, currentOrganizationId) => {
+export const removeMember = async (projectId, targetUserId, requestorId, currentOrganizationId) => {
   if (!mongoose.isValidObjectId(projectId)) {
     throw new Error('INVALID_PROJECT_ID');
   }
 
-  if (!mongoose.isValidObjectId(userId)) {
+  if (!mongoose.isValidObjectId(targetUserId)) {
     throw new Error('INVALID_USER_ID');
+  }
+
+  if (!mongoose.isValidObjectId(requestorId)) {
+    throw new Error('INVALID_REQUESTOR_ID');
   }
 
   if (!currentOrganizationId) {
     throw new Error('ORGANIZATION_REQUIRED');
   }
 
-  const hasPermission = await checkProjectPermission(projectId, userId, currentOrganizationId);
-  if (!hasPermission) {
-      throw new Error('FORBIDDEN_PROJECT_ACTION'); 
-  }
-
+  // 1. Kiểm tra project tồn tại
   const project = await Project.findOne({
     _id: projectId,
     organizationId: currentOrganizationId,
@@ -518,15 +524,69 @@ export const removeMember = async (projectId, userId, currentOrganizationId) => 
     throw new Error('PROJECT_NOT_FOUND');
   }
 
-  // Cannot remove creator
-  if (project.createdBy.toString() === userId.toString()) {
+  // 2. CHẶN TUYỆT ĐỐI: Không cho xóa Project Owner/Creator
+  if (project.createdBy.toString() === targetUserId.toString()) {
     throw new Error('CANNOT_REMOVE_CREATOR');
   }
 
-  // Remove member from ProjectMember table
+  // 3. Lấy thông tin role của người thực hiện (requestor)
+  const requestorMember = await ProjectMember.findOne({
+    projectId,
+    userId: requestorId,
+    status: 'ACTIVE'
+  });
+
+  // DEBUG: Kiểm tra kết quả
+  console.log('Remove Member Debug:', {
+    projectId,
+    requestorId,
+    targetUserId,
+    requestorMember: requestorMember ? {
+      role: requestorMember.roleInProject,
+      status: requestorMember.status
+    } : 'NOT_FOUND'
+  });
+
+  if (!requestorMember) {
+    throw new Error('FORBIDDEN_PROJECT_ACTION'); // Người request không thuộc dự án
+  }
+
+  // 4. Lấy thông tin role của người bị xóa (target)
+  const targetMember = await ProjectMember.findOne({
+    projectId,
+    userId: targetUserId,
+    status: 'ACTIVE'
+  });
+
+  if (!targetMember) {
+    throw new Error('MEMBER_NOT_FOUND');
+  }
+
+  // 5. Không cho phép tự xóa chính mình
+  if (requestorId.toString() === targetUserId.toString()) {
+    throw new Error('CANNOT_REMOVE_SELF');
+  }
+
+  // 6. SO SÁNH QUYỀN: Admin > Manager > Member
+  const roleHierarchy = {
+    'Admin': 3,
+    'Manager': 2,
+    'Member': 1
+  };
+
+  const requestorRoleLevel = roleHierarchy[requestorMember.roleInProject] || 0;
+  const targetRoleLevel = roleHierarchy[targetMember.roleInProject] || 0;
+
+  // Người thực hiện phải có quyền CAO HƠN HOẶC BẰNG người bị xóa
+  // Nhưng trong thực tế, nên yêu cầu CAO HƠN để tránh Member xóa Member
+  if (requestorRoleLevel <= targetRoleLevel) {
+    throw new Error('INSUFFICIENT_PERMISSIONS'); // Không đủ quyền
+  }
+
+  // 7. Xóa member khỏi ProjectMember table
   const result = await ProjectMember.findOneAndDelete({
     projectId,
-    userId
+    userId: targetUserId
   });
 
   if (!result) {

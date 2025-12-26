@@ -59,6 +59,7 @@ export const removeMember = async (req, res) => {
   try {
     const { id: projectId, memberId } = req.params;
     const currentOrganizationId = req.user?.currentOrganizationId;
+    const requestorId = req.user._id; // ID của người thực hiện hành động xóa
 
     // --- LOGIC QUAN TRỌNG ĐỂ KHỚP FRONTEND ---
     // Frontend đang gửi 'memberId' là ID của bản ghi ProjectMember (membershipId).
@@ -74,11 +75,26 @@ export const removeMember = async (req, res) => {
     }
     // ------------------------------------------
 
-    await projectService.removeMember(projectId, userIdToDelete, currentOrganizationId);
+    await projectService.removeMember(projectId, userIdToDelete, requestorId, currentOrganizationId);
 
     res.json({ success: true, message: "Member removed successfully" });
   } catch (err) {
     console.error("Remove Member Error:", err);
+    
+    // Handle specific errors
+    if (err.message === 'FORBIDDEN_PROJECT_ACTION') {
+         return res.status(403).json({ success: false, message: "Forbidden: You don't have permission to remove members" });
+    }
+    if (err.message === 'CANNOT_REMOVE_CREATOR') {
+         return res.status(400).json({ success: false, message: "Cannot remove project creator/owner" });
+    }
+    if (err.message === 'INSUFFICIENT_PERMISSIONS') {
+         return res.status(403).json({ success: false, message: "Insufficient permissions: Cannot remove member with equal or higher role" });
+    }
+    if (err.message === 'CANNOT_REMOVE_SELF') {
+         return res.status(400).json({ success: false, message: "Cannot remove yourself from project" });
+    }
+    
     res.status(500).json({ success: false, error: "ServerError", message: err.message });
   }
 };

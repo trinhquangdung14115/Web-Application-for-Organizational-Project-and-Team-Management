@@ -5,6 +5,9 @@
     "@react-oauth/google": "^0.12.2",
     "react-confetti": "^6.4.0",
     "react-mentions": "^4.4.10",
+    "react-toastify": "^11.0.5",
+    "socket.io": "^4.8.2",
+    "sweetalert2": "^11.26.17",
     "tailwindcss": "^4.1.16"
   }
 }

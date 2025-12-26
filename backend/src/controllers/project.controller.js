@@ -708,19 +708,26 @@ export const removeProjectMember = async (req, res) => {
   try {
     const { id, memberId } = req.params; // id là projectId
     const currentOrgId = req.user.currentOrganizationId;
+    const requestorId = req.user._id; // ID của người thực hiện hành động xóa
     
     // memberId user gửi lên là userId (do mình đã fix ở FE)
-    // Gọi service để xóa
-    await projectService.removeMember(id, memberId, currentOrgId);
+    // Gọi service để xóa với đầy đủ thông tin
+    await projectService.removeMember(id, memberId, requestorId, currentOrgId);
 
     res.json({ success: true, message: "Member removed successfully" });
   } catch (err) {
     // Handle error permission từ service
     if (err.message === 'FORBIDDEN_PROJECT_ACTION') {
-         return res.status(403).json({ success: false, message: "Forbidden: Only Manager/Admin can remove members" });
+         return res.status(403).json({ success: false, message: "Forbidden: You don't have permission to remove members" });
     }
     if (err.message === 'CANNOT_REMOVE_CREATOR') {
-         return res.status(400).json({ success: false, message: "Cannot remove project creator" });
+         return res.status(400).json({ success: false, message: "Cannot remove project creator/owner" });
+    }
+    if (err.message === 'INSUFFICIENT_PERMISSIONS') {
+         return res.status(403).json({ success: false, message: "Insufficient permissions: Cannot remove member with equal or higher role" });
+    }
+    if (err.message === 'CANNOT_REMOVE_SELF') {
+         return res.status(400).json({ success: false, message: "Cannot remove yourself from project" });
     }
     res.status(500).json({ success: false, message: err.message });
   }

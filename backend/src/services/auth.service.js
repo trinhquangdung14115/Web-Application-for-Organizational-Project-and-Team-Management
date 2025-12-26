@@ -1,6 +1,12 @@
 /**
  * Auth Service Layer
  * Business logic for authentication
+ * 
+ * REFACTORED (26/12/2025):
+ * - Password hashing: Chỉ dùng bcrypt (qua User model pre-save hook)
+ * - Login optimization: Chỉ update DB khi currentOrganizationId thực sự thay đổi
+ * - Removed: Import bcrypt thừa (model đã tự động hash)
+ * - Fixed: createUser() bug với session parameter không tồn tại
  */
 
 import User from "../models/user.model.js";
@@ -10,7 +16,6 @@ import { signToken } from "../utils/jwt.js";
 import crypto from "crypto";
 import { sendPasswordResetEmail, sendWelcomeEmail } from "./email.service.js";
 import { OAuth2Client } from "google-auth-library";
-import bcrypt from "bcrypt";
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -28,13 +33,8 @@ export const createUser = async (name, email, password) => {
   const count = await User.countDocuments();
   const role = count === 0 ? "Admin" : "Member";
 
-  // Create user
-    let user;
-  if (session) {
-    [user] = await User.create([{ name, email, password, role }], { session });
-  } else {
-    user = await User.create({ name, email, password, role });
-  }
+  // Create user (Model pre-save hook sẽ tự động hash password bằng bcrypt)
+  const user = await User.create({ name, email, password, role });
 
   // Generate token (no organizationId for first user/admin)
   const token = signToken({ 
@@ -96,11 +96,17 @@ export const loginUser = async (email, password) => {
       throw new Error("ORGANIZATION_DELETED");
     }
 
-    // Update user's currentOrganizationId
-    user.currentOrganizationId = currentOrganization._id;
-    await user.save();
+    // CHỈ update currentOrganizationId nếu THỰC SỰ THAY ĐỔI (tránh query DB thừa)
+    const newOrgId = currentOrganization._id;
+    const currentOrgIdStr = user.currentOrganizationId?.toString();
+    const newOrgIdStr = newOrgId.toString();
     
-    organizationId = currentOrganization._id.toString();
+    if (currentOrgIdStr !== newOrgIdStr) {
+      user.currentOrganizationId = newOrgId;
+      await user.save();
+    }
+    
+    organizationId = newOrgIdStr;
   }
 
   // Generate token with organizationId
