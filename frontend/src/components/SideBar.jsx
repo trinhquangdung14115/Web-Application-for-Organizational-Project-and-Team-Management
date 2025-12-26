@@ -4,7 +4,8 @@ import { useProject } from '../context/ProjectContext';
 import logoUserFull from '../assets/images/syncora-official.png'; 
 import logoAdminFull from '../assets/images/syncora-admin.png';  
 import logoAdmin from '../assets/images/logoadmin.png'; 
-import logoUser from '../assets/images/logo.png';               
+import logoUser from '../assets/images/logo.png'; 
+import axiosInstance from '../services/api';              
 
 
 import { useAuth } from '../services/AuthContext'; 
@@ -154,23 +155,29 @@ const SideBar = ({ unreadCount, basePath="" }) => {
 }
 const ProjectSwitcher = ({ isExpanded }) => {
     const { selectedProjectId, selectedProjectName, switchProject } = useProject();
+    const { user } = useAuth();
     const [projects, setProjects] = useState([]);
     const [isOpen, setIsOpen] = useState(false);
+    const isAdmin = user?.role === 'Admin';
 
     // Fetch list dự án 1 lần khi mount
     useEffect(() => {
         const fetchProjects = async () => {
             try {
-                // Gọi API lấy list project của user
-                const res = await fetch('http://localhost:4000/api/projects', {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                });
-                const data = await res.json();
-                if(data.success) setProjects(data.data);
+                // Dùng axiosInstance thay vì fetch thường
+                const res = await axiosInstance.get('/projects');
+                if(res.data.success) setProjects(res.data.data);
             } catch (err) { console.error(err); }
         };
         fetchProjects();
     }, []);
+
+    useEffect(() => {
+        if (!isAdmin && selectedProjectId === 'all' && projects.length > 0) {
+            // Nếu không phải Admin mà đang ở 'all', chuyển ngay về dự án đầu tiên
+            switchProject(projects[0]._id, projects[0].name);
+        }
+    }, [isAdmin, selectedProjectId, projects, switchProject]);
 
     const handleSelect = (id, name) => {
         switchProject(id, name);
@@ -203,12 +210,15 @@ const ProjectSwitcher = ({ isExpanded }) => {
                     <p className="px-2 py-1 text-xs font-bold text-gray-400 uppercase">Select Project</p>
                     
                     {/* Option All Projects */}
-                    <button onClick={() => handleSelect('all', 'All Projects')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 text-sm flex items-center justify-between">
-                        <span>All Projects</span>
-                        {selectedProjectId === 'all' && <CheckIcon className="w-4 h-4 text-green-600"/>}
-                    </button>
-
-                    <div className="h-px bg-gray-100 my-1"></div>
+                    {isAdmin && (
+                        <>
+                            <button onClick={() => handleSelect('all', 'All Projects')} className="w-full text-left px-3 py-2 rounded-lg hover:bg-gray-50 text-sm flex items-center justify-between">
+                                <span>All Projects</span>
+                                {selectedProjectId === 'all' && <CheckIcon className="w-4 h-4 text-green-600"/>}
+                            </button>
+                            <div className="h-px bg-gray-100 my-1"></div>
+                        </>
+                    )}
 
                     {/* List Projects */}
                     <div className="max-h-48 overflow-y-auto custom-scrollbar">
