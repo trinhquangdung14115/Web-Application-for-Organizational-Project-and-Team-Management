@@ -326,7 +326,11 @@ export async function login(req, res, next) {
       data: {
         token: newToken,
         tokenType: "Bearer",
-        user: authResult.user,
+        user: {
+            ...authResult.user, 
+            currentOrganizationId: user.currentOrganizationId, // Lấy từ biến user vừa query lại ở trên
+            organizations: user.organizations
+        },
         organization: organization
       },
     });

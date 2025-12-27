@@ -22,7 +22,11 @@ export const createOrganization = async (req, res) => {
       ],
       { session }
     );
-
+    await User.findByIdAndUpdate(req.user._id, {
+      role: 'Admin',
+      currentOrganizationId: newOrg._id,
+      $push: { organizations: newOrg._id }
+  });
     await OrganizationMember.create(
       [
         {

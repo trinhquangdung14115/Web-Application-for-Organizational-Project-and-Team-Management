@@ -1,7 +1,7 @@
 import { verifyJwt } from "../utils/jwt.js"; // Helper có sẵn trong project
 import Message from "../models/message.model.js";
 import User from "../models/user.model.js";
-
+import { initSocket } from "../services/socket.service.js"; 
 export const setupSocket = (io) => {
   
   // Middleware: Xác thực Token trước khi cho kết nối
@@ -27,6 +27,8 @@ export const setupSocket = (io) => {
   io.on("connection", (socket) => {
     console.log(`User connected: ${socket.id} | UserID: ${socket.user._id}`);
 
+    socket.join(userId);
+    
     // Join vào phòng Chat của Project
     socket.on("join_project", (projectId) => {
       socket.join(projectId);

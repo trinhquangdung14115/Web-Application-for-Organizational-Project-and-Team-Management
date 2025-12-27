@@ -20,7 +20,34 @@ export default function PricingPage() {
   // State Payment
   const [paymentError, setPaymentError] = useState(''); 
 
-  const handleSelectPlan = (plan) => {
+  const handleSelectPlan = async (plan) => {
+    const token = localStorage.getItem('token');
+    if(!token){
+      navigate('/login');
+      return;
+    }
+    try {
+        // Gọi API tạo Org 
+        const res = await axiosInstance.post('/organizations', {
+            name: "My New Workspace", // Có thể thêm input cho user nhập tên
+            plan: plan
+        });
+
+        if (res.data.success) {
+            // CẬP NHẬT LẠI USER LOCALSTORAGE
+            // Vì BE sau khi tạo Org sẽ update user có currentOrganizationId mới
+            const updatedUser = res.data.data.user; 
+            const newToken = res.data.data.token; // Token mới chứa OrgId
+
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+            localStorage.setItem('token', newToken); 
+            window.location.href = '/home';
+        }
+    } catch (err) {
+        console.error("Failed to create org", err);
+    }
+
+    
     setSelectedPlan(plan);
     setPaymentError('');
   };

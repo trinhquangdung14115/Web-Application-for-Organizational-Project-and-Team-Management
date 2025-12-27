@@ -41,11 +41,21 @@ const LoginPage = () => {
     const { credential } = credentialResponse;
     // Gọi hàm service (đã thống nhất) để gửi token lên BE
     const data = await loginWithGoogle(credential); 
+    const {token, user} = data.data || data;
     
-    // TODO FE1 làm AuthContext
-    // auth.login(data.user, data.token); // Cập nhật state toàn app
+    localStorage.setItem("token", token);
+    localStorage.setItem("user", JSON.stringify(user));
+    saveLogin(user, token);
+
+    if(!user.currentOrganizationId){
+        console.log("User has no organization. Redirecting to Pricing!")
+        navigate('/pricing')
+    }
+    else{
+        navigate('/home'); 
+    }
+ 
     
-    navigate('/home'); // Chuyển trang
   } catch (err) {
     console.error("Google login failed", err);
     setError("Google login failed. Please try again.");
@@ -76,9 +86,16 @@ const handleGoogleError = () => {
     const token = res.data?.token || res.token;
 
     if (!user || !user.role) {
-        throw new Error("Dữ liệu user trả về bị thiếu role!");
+        throw new Error("DUser data missing!");
     }
     saveLogin(user, token);
+
+    if (!user.currentOrganizationId) {
+            console.log("Old user but no Organization. Redirecting to Pricing...");
+            navigate('/pricing'); 
+            return; 
+        }
+
     const roleCheck = user.role.toLowerCase(); 
 
     if (roleCheck === 'admin') {
