@@ -37,7 +37,12 @@ export const getFilteredTasks = async (filters) => {
   return tasks;
 };
 
+
+
 export const getTaskById = async (taskId, userId, userRole) => {
+  //  DEBUG: Log input
+  console.log(' [getTaskById] Input:', { taskId, userId, userRole });
+
   if (!mongoose.isValidObjectId(taskId)) {
     throw new Error('INVALID_TASK_ID');
   }
@@ -51,26 +56,57 @@ export const getTaskById = async (taskId, userId, userRole) => {
     throw new Error('TASK_NOT_FOUND');
   }
 
-  //  Bỏ qua check membership nếu là System Admin
+  // DEBUG: Log task info
+  console.log(' [getTaskById] Task found:', {
+    taskId: task._id,
+    projectId: task.projectId?._id || task.projectId
+  });
+
+  // Bỏ qua check membership nếu là System Admin
   if (userRole !== 'Admin') {
+    const projectId = task.projectId?._id || task.projectId;
+    
+    // tìm theo projectId + userId
+    // Sau đó check status riêng
     const membership = await ProjectMember.findOne({
-      projectId: task.projectId._id || task.projectId,
-      userId: userId,
-      status: 'ACTIVE'
+      projectId: projectId,
+      userId: userId
     });
 
+    //  DEBUG: Log membership query
+    console.log('[getTaskById] Membership query:', {
+      projectId: projectId,
+      userId: userId,
+      found: !!membership,
+      membershipData: membership ? {
+        id: membership._id,
+        status: membership.status,
+        roleInProject: membership.roleInProject,
+        role: membership.role
+      } : null
+    });
+
+    // Check nếu không tìm thấy hoặc status không active
     if (!membership) {
-      console.error('Membership check failed:', {
-        projectId: task.projectId._id || task.projectId,
-        userId,
-        userRole
-      });
-      throw new Error('FORBIDDEN'); 
+      console.error('[getTaskById] No membership found');
+      throw new Error('FORBIDDEN');
     }
+
+    //  Check status linh hoạt  
+    if (membership.status && membership.status !== 'ACTIVE') {
+      console.error('[getTaskById] Membership not active:', membership.status);
+      throw new Error('FORBIDDEN');
+    }
+
+    console.log(' [getTaskById] Membership valid');
+  } else {
+    console.log(' [getTaskById] User is System Admin, skipping membership check');
   }
 
   return task;
 };
+
+// ...existing code...
 
 export const createTask = async (taskData, userId, projectId, currentOrganizationId) => {
   const {

@@ -34,7 +34,7 @@ router.get("/tasks", verifyToken, requireOrgAccess, getFilteredTasks);
  * @desc    Get task detail by ID
  * @access  Private (Project Member)
  */
-router.get("/tasks/:id", verifyToken, requireOrgAccess, requireProjectMember, getTasksById); 
+router.get("/tasks/:id", verifyToken, requireOrgAccess, getTasksById); 
 
 /**
  * @route   GET /projects/:id/tasks
