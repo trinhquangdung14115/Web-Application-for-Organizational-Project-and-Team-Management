@@ -4,6 +4,7 @@ import Project from "../models/project.model.js";
 import ActivityLog from "../models/activityLog.model.js";
 import AIService from "../services/ai.service.js";
 import Label from "../models/label.model.js";
+import ProjectMember from "../models/projectMember.model.js"; 
 
 export const getTasksByProject = async (projectId) => {
   const projectExists = await Project.findById(projectId);
@@ -36,7 +37,7 @@ export const getFilteredTasks = async (filters) => {
   return tasks;
 };
 
-export const getTaskById = async (taskId) => {
+export const getTaskById = async (taskId, userId, userRole) => {
   if (!mongoose.isValidObjectId(taskId)) {
     throw new Error('INVALID_TASK_ID');
   }
@@ -49,6 +50,25 @@ export const getTaskById = async (taskId) => {
   if (!task || task.deletedAt) {
     throw new Error('TASK_NOT_FOUND');
   }
+
+  //  Bỏ qua check membership nếu là System Admin
+  if (userRole !== 'Admin') {
+    const membership = await ProjectMember.findOne({
+      projectId: task.projectId._id || task.projectId,
+      userId: userId,
+      status: 'ACTIVE'
+    });
+
+    if (!membership) {
+      console.error('Membership check failed:', {
+        projectId: task.projectId._id || task.projectId,
+        userId,
+        userRole
+      });
+      throw new Error('FORBIDDEN'); 
+    }
+  }
+
   return task;
 };
 

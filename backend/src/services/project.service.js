@@ -268,7 +268,7 @@ export const listProjects = async (filters = {}, userId, userRole) => {
 /**
  * Get single project by ID
  */
-export const getProjectById = async (projectId, currentOrganizationId) => {
+export const getProjectById = async (projectId, userId, userSystemRole, currentOrganizationId) => {
   if (!mongoose.isValidObjectId(projectId)) {
     throw new Error('INVALID_PROJECT_ID');
   }
@@ -282,14 +282,34 @@ export const getProjectById = async (projectId, currentOrganizationId) => {
     organizationId: currentOrganizationId,
     deletedAt: null
   })
-    .populate('createdBy', 'name email')
-    //.populate('members.user', 'name email role avatar');
+    .populate('createdBy', 'name email');
 
   if (!project) {
     throw new Error('PROJECT_NOT_FOUND');
   }
 
-  return project;
+  // Tìm membership của user trong project
+  const membership = await ProjectMember.findOne({ 
+    projectId: projectId, 
+    userId: userId,
+    status: 'ACTIVE'
+  });
+
+  // Xác định currentUserRole
+  let currentUserRole = 'Member';
+  
+  if (userSystemRole === 'Admin') {
+    // System Admin luôn có quyền Admin trong mọi project
+    currentUserRole = 'Admin';
+  } else if (membership) {
+    // Lấy role từ membership nếu có
+    currentUserRole = membership.roleInProject || 'Member';
+  }
+
+  return {
+    ...project.toObject(),
+    currentUserRole
+  };
 };
 
 /**

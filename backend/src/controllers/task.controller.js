@@ -51,17 +51,35 @@ export const getFilteredTasks = async (req, res) => {
  */
 export const getTasksById = async (req, res) => {
   try {
-    const task = await taskService.getTaskById(req.params.id);
+    const userId = req.user._id || req.user.id;
+    const userRole = req.user.role;
+
+    
+    console.log(' [getTasksById] Request:', {
+      taskId: req.params.id,
+      userId,
+      userRole,
+      userFromToken: req.user
+    });
+    const task = await taskService.getTaskById(
+      req.params.id, 
+      userId, 
+      userRole
+    );
+    
     res.status(200).json({
       success: true,
       data: task,
     });
   } catch (err) {
     if (err.message === 'INVALID_TASK_ID') {
-      return res.status(400).json({ success: false, message: "Invalid Task ID" });
+      return res.status(400).json({ success: false, error: "ValidationError", message: "Invalid Task ID" });
     }
     if (err.message === 'TASK_NOT_FOUND') {
-      return res.status(404).json({ success: false, message: "Task not found" });
+      return res.status(404).json({ success: false, error: "NotFoundError", message: "Task not found" });
+    }
+    if (err.message === 'FORBIDDEN') {
+      return res.status(403).json({ success: false, error: "ForbiddenError", message: "You are not a member of this project" });
     }
     res.status(500).json({ success: false, error: "ServerError", message: err.message });
   }

@@ -6,7 +6,7 @@ import {
     QrCodeIcon, ClipboardDocumentIcon, ArrowPathIcon 
 } from '@heroicons/react/24/outline';
 import { useParams } from 'react-router-dom'; 
-
+import { useAuth } from '../services/AuthContext';
 import { LoaderOverlay } from '../components/LoaderOverlay';
 import AddMemberModal from '../components/AddMemberModal';
 import AssignToProjectModal from '../components/AssignToProjectModal';
@@ -266,13 +266,12 @@ const UserInfoModal = ({ isOpen, onClose, user }) => {
 
 // --- MAIN COMPONENT ---
 const Members = () => { 
-    const { selectedProjectId, switchProject } = useProject(); // ✅ LẤY ĐÚNG TỪ CONTEXT
-    //  THÊM STATE CHO DANH SÁCH PROJECTS
+    const { user } = useAuth();
+    const { selectedProjectId, switchProject, project} = useProject(); 
     const [availableProjects, setAvailableProjects] = useState([]);
     const [members, setMembers] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
-    const [currentUserId, setCurrentUserId] = useState(null);
     const [myProjectRole, setMyProjectRole] = useState(null);
     // States
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -282,108 +281,123 @@ const Members = () => {
 
     const [selectedUser, setSelectedUser] = useState(null);
     const [notification, setNotification] = useState({ message: '', type: '' });
-    
-    // Auth & Filter
-    const [currentUserRole, setCurrentUserRole] = useState('Member');
-    // Action States
+        // Action States
     const [deleteUserModal, setDeleteUserModal] = useState(null); 
     const [removeProjectConfirm, setRemoveProjectConfirm] = useState(null); 
     const [selectProjectModal, setSelectProjectModal] = useState(null); 
 
+    // ✅ FIX: Ưu tiên System Admin trước khi check Project Role
+    const isSystemAdmin = user?.role === 'Admin';
+    const projectRole = project?.currentUserRole || 'Member';
+    const isAdminView = selectedProjectId === 'all';
+    
+    // ✅ FIX: Nếu là System Admin -> Luôn có quyền Admin trong Project
+    const effectiveProjectRole = isSystemAdmin ? 'Admin' : projectRole;
+    
+    const isProjectAdmin = effectiveProjectRole === 'Admin';
+    const isProjectManager = effectiveProjectRole === 'Manager';
+    
+    // ✅ FIX: Logic check quyền đã chính xác
+    const canManageInAdminView = isSystemAdmin && isAdminView;
+    const canManageInProjectView = !isAdminView && (isProjectAdmin || isProjectManager);
+    const canManage = canManageInAdminView || canManageInProjectView;
+    
+    // ✅ FIX: Quyền invite - System Admin luôn có quyền
+    const canInvite = !isAdminView && (isSystemAdmin || isProjectAdmin || isProjectManager);
+    
     const showNotification = (message, type = 'success') => {
         setNotification({ message, type });
         setTimeout(() => setNotification({ message: '', type: '' }), 3000);
     };
-
-    useEffect(() => {
-        const userStr = localStorage.getItem('user');
-        if (userStr) {
-            const userObj = JSON.parse(userStr);
-            setCurrentUserRole(JSON.parse(userStr).role || 'Member');
-            setCurrentUserId(userObj.id || userObj._id);
-        }
-    }, []);
+    const currentUserId = user?._id || user?.id;
 
     // 1. Fetch Projects for Filte
 
     // 2. Fetch Members
-// 2. Fetch Members
-    const fetchData = useCallback(async () => {
-        setIsLoading(true);
-        try {
-            // Lấy User ID chuẩn từ LocalStorage để so sánh
-            const userStr = localStorage.getItem('user');
-            const userObj = userStr ? JSON.parse(userStr) : {};
-            const myId = userObj.id || userObj._id;
-            const mySystemRole = userObj.role;
+const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+        // Lấy User ID chuẩn từ LocalStorage để so sánh
+        const userStr = localStorage.getItem('user');
+        const userObj = userStr ? JSON.parse(userStr) : {};
+        const myId = user?.id || user?._id;
+        const mySystemRole = user?.role;
 
-            const targetProjectId = selectedProjectId !== 'all' ? selectedProjectId : null;
-            // CASE A: Xem chi tiết 1 Project
-            if (targetProjectId) {
-                const res = await fetch(`${API_BASE_URL}/projects/${targetProjectId}/members`, { headers: getHeaders() });
-                if (!res.ok) throw new Error('Access denied');
-                const data = await res.json();
-                
-                const mapped = (data.data || []).map(m => ({
-                    id: m.user.id || m.user._id,
-                    name: m.user.name,
-                    email: m.user.email,
-                    role: m.role, // Role dự án (Admin/Manager/Member)
-                    systemRole: m.user.role, 
-                    avatarUrl: m.user.avatar,
-                    createdAt: m.createdAt,
-                    projects: [],
-                    membershipId: m._id 
-                }));
+        const targetProjectId = selectedProjectId !== 'all' ? selectedProjectId : null;
+        // CASE A: Xem chi tiết 1 Project
+        if (targetProjectId) {
+            const res = await fetch(`${API_BASE_URL}/projects/${targetProjectId}/members`, { headers: getHeaders() });
+            if (!res.ok) throw new Error('Access denied');
+            const data = await res.json();
+            
+            const mapped = (data.data || []).map(m => ({
+                id: m.user.id || m.user._id,
+                name: m.user.name,
+                email: m.user.email,
+                role: m.role, // Role dự án (Admin/Manager/Member)
+                systemRole: m.user.role, 
+                avatarUrl: m.user.avatar,
+                createdAt: m.createdAt,
+                projects: [],
+                membershipId: m._id 
+            }));
 
-                // 1. Tìm xem mình là ai trong dự án này để set quyền nút bấm
-                const meInProject = mapped.find(m => String(m.id) === String(myId));
-                setMyProjectRole(meInProject ? meInProject.role : null);
-
-                // 2. Lọc bỏ Admin hệ thống ra khỏi danh sách hiển thị (để đỡ rối)
-                const visibleMembers = mapped.filter(m => m.systemRole !== 'Admin');
-                setMembers(visibleMembers);
+            // ✅ FIX: Ưu tiên System Role nếu là Admin
+            const meInProject = mapped.find(m => String(m.id) === String(myId));
+            let myRoleInProject = meInProject ? meInProject.role : null;
+            
+            // ✅ QUAN TRỌNG: Nếu System Admin -> Override thành Admin
+            if (mySystemRole === 'Admin') {
+                myRoleInProject = 'Admin';
             }
-            // CASE B: Xem tất cả (Admin Mode)
-            else if (mySystemRole === 'Admin') {
-                const usersRes = await fetch(`${API_BASE_URL}/users`, { headers: getHeaders() });
-                if (!usersRes.ok) throw new Error('Failed');
-                const usersData = await usersRes.json();
+            
+            setMyProjectRole(myRoleInProject);
 
-                const mapped = (usersData.data || []).map(u => {
-                    // [LOGIC MỚI] Ép hiển thị: Nếu không phải Admin thì coi là Member hết
-                    let displaySystemRole = u.role;
-                    if (u.role !== 'Admin') displaySystemRole = 'Member';
+            // 2. Lọc bỏ Admin hệ thống ra khỏi danh sách hiển thị (để đỡ rối)
+            const visibleMembers = mapped.filter(m => m.systemRole !== 'Admin');
+            setMembers(visibleMembers);
+        }
+        // CASE B: Xem tất cả (Admin Mode)
+        else if (mySystemRole === 'Admin') {
+            const usersRes = await fetch(`${API_BASE_URL}/users`, { headers: getHeaders() });
+            if (!usersRes.ok) throw new Error('Failed');
+            const usersData = await usersRes.json();
 
-                    return {
-                        id: u._id || u.id,
-                        name: u.name,
-                        email: u.email,
-                        role: displaySystemRole, // Ép hiển thị Member
-                        realRole: u.role,        // Lưu role gốc nếu cần dùng
-                        createdAt: u.createdAt,
-                        projectCount: u.projectCount || 0,
-                        membershipId: null 
-                    };
-                });
-                
-                setMyProjectRole(null); // Không ở trong project nào
-                setMembers(mapped);
-            }
-        } catch (error) { 
-            console.error(error); 
-        } finally { setIsLoading(false); }
-    }, [selectedProjectId]);
+            const mapped = (usersData.data || []).map(u => {
+                // [LOGIC MỚI] Ép hiển thị: Nếu không phải Admin thì coi là Member hết
+                let displaySystemRole = u.role;
+                if (u.role !== 'Admin') displaySystemRole = 'Member';
 
-    useEffect(() => { fetchData(); }, [fetchData]);
+                return {
+                    id: u._id || u.id,
+                    name: u.name,
+                    email: u.email,
+                    role: displaySystemRole, // Ép hiển thị Member
+                    realRole: u.role,        // Lưu role gốc nếu cần dùng
+                    createdAt: u.createdAt,
+                    projectCount: u.projectCount || 0,
+                    membershipId: null 
+                };
+            });
+            
+            setMyProjectRole(null); // Không ở trong project nào
+            setMembers(mapped);
+        }
+    } catch (error) { 
+        console.error(error); 
+    } finally { setIsLoading(false); }
+}, [selectedProjectId, user]);
 
-    const handleChangeRole = async (userId, newRole) => { 
+useEffect(() => { fetchData(); }, [fetchData]);
+
+const handleChangeRole = async (userId, newRole) => { 
     try {
         let url;
         let method = 'PUT';
         
-        //Phân biệt đang sửa role Hệ thống hay role Dự án
-       if (selectedProjectId !== 'all') {
+        // FIX: Phân biệt đang sửa role Hệ thống hay role Dự án
+        if (selectedProjectId !== 'all') {
+            // Đang ở Project View -> Gọi API sửa role dự án
             const pId = selectedProjectId;
             url = `${API_BASE_URL}/projects/${pId}/members/${userId}`;
         } else {
@@ -407,7 +421,7 @@ const Members = () => {
                     return { 
                         ...member, 
                         role: newRole, 
-                        // Nếu đang ở Admin view thì update cả systemRole, còn project view thì thôi
+                        // Nếu đang ở Admin view thì update cả systemRole
                         ...(selectedProjectId === 'all' ? { systemRole: newRole } : {})
                     };
                 }
@@ -509,11 +523,6 @@ const Members = () => {
         (member.email && member.email.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
-    const isAdmin = currentUserRole === 'Admin';
-    const isProjectView = selectedProjectId !== 'all'; 
-    const canManage = isAdmin || (isProjectView && (myProjectRole === 'Manager' || myProjectRole === 'Admin'));
-    const canInvite = isProjectView && (isAdmin || currentUserRole === 'Manager');
-
     return (
         <div className="flex-1 p-6 md:p-8 bg-gray-50 min-h-screen relative">
             <NotificationBanner message={notification.message} type={notification.type} onClose={() => setNotification({ message: '', type: '' })} />
@@ -542,7 +551,7 @@ const Members = () => {
                                         switchProject(e.target.value, project?.name || 'Unknown');
                                     }}
                                 >
-                                    {isAdmin && <option value="all">All Members</option>}
+                                    {isSystemAdmin && <option value="all">All Members</option>}
                                     {availableProjects.map(p => (
                                         <option key={p._id} value={p._id}>{p.name}</option>
                                     ))}
@@ -552,12 +561,12 @@ const Members = () => {
                     </div>
                     <div className="flex items-center gap-3">
                         {canInvite && <button onClick={() => setIsInviteModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-medium shadow-sm"><QrCodeIcon className="w-5 h-5 text-[var(--color-brand)]" /><span>Invite</span></button>}
-                        {(isAdmin || (isProjectView && currentUserRole === 'Manager')) && <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 text-white rounded-lg hover:opacity-90 transition-all font-medium shadow-sm" style={{ backgroundColor: 'var(--color-brand)' }}><UserPlusIcon className="w-5 h-5" /><span>Add Member</span></button>}
+                        {canManage && <button onClick={() => setIsAddModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 text-white rounded-lg hover:opacity-90 transition-all font-medium shadow-sm" style={{ backgroundColor: 'var(--color-brand)' }}><UserPlusIcon className="w-5 h-5" /><span>Add Member</span></button>}
                     </div>
                 </div>
 
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    {isAdmin && !isProjectView && (
+                    {canManageInAdminView && (
                         <div className="px-6 py-3 border-b flex items-center gap-2" style={{ backgroundColor: 'color-mix(in srgb, var(--color-brand) 5%, white)', borderColor: 'color-mix(in srgb, var(--color-brand) 20%, white)' }}>
                             <ShieldCheckIcon className="w-5 h-5" style={{ color: 'var(--color-brand)' }} />
                             <span className="text-sm font-bold" style={{ color: 'var(--color-brand)' }}>Admin Management Mode</span>
@@ -570,9 +579,9 @@ const Members = () => {
                                 <thead className="bg-gray-50">
                                     <tr>
                                         <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Member</th>
-                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">{isProjectView ? 'Project Role' : 'System Role'}</th>
-                                        {!isProjectView && <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Projects Joined</th>}
-                                        {(isAdmin || isProjectView) && <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Actions</th>}
+                                        <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">{isAdminView ? 'System Role' : 'Project Role'}</th>
+                                        {isAdminView && <th className="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase">Projects Joined</th>}
+                                        {canManage && <th className="px-6 py-4 text-right text-xs font-bold text-gray-500 uppercase">Actions</th>}
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white divide-y divide-gray-200">
@@ -580,13 +589,18 @@ const Members = () => {
                                         <tr key={member.id} className="hover:bg-gray-50">
                                             <td className="px-6 py-4"><div className="flex items-center gap-3"><Avatar name={member.name} avatarUrl={member.avatarUrl} /><div><div className="text-sm font-bold text-gray-900">{member.name}</div><div className="text-sm text-gray-500">{member.email}</div></div></div></td>
                                             <td className="px-6 py-4"><RoleSelect currentRole={member.role} userId={member.id} onChange={handleChangeRole} canEdit={canManage} currentUserId={currentUserId} /></td>
-                                            {!isProjectView && <td className="px-6 py-4"><span className="px-2 py-1 text-xs bg-gray-100 rounded-full">{member.projectCount || 0} Projects</span></td>}
+                                            {isAdminView && <td className="px-6 py-4"><span className="px-2 py-1 text-xs bg-gray-100 rounded-full">{member.projectCount || 0} Projects</span></td>}
                                             {canManage && (
                                                 <td className="px-6 py-4 text-right">
                                                     <div className="flex justify-end items-center gap-2">
                                                         <button onClick={() => handleInfo(member)} className="text-gray-400 hover:text-blue-600 p-1 rounded-full hover:bg-blue-50"><InformationCircleIcon className="w-5 h-5" /></button>
                                                         <button onClick={() => handleRemoveClick(member)} className="text-gray-400 hover:text-orange-600 p-1 rounded-full hover:bg-orange-50"><FolderMinusIcon className="w-5 h-5" /></button>
-                                                        {isAdmin && <><button onClick={() => handleAssign(member)} className="text-gray-400 hover:text-purple-600 p-1 rounded-full hover:bg-purple-50"><FolderPlusIcon className="w-5 h-5" /></button><button onClick={() => setDeleteUserModal(member)} className="text-gray-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50"><TrashIcon className="w-5 h-5" /></button></>}
+                                                        {canManageInAdminView && (
+                                                            <>
+                                                                <button onClick={() => handleAssign(member)} className="text-gray-400 hover:text-purple-600 p-1 rounded-full hover:bg-purple-50"><FolderPlusIcon className="w-5 h-5" /></button>
+                                                                <button onClick={() => setDeleteUserModal(member)} className="text-gray-400 hover:text-red-600 p-1 rounded-full hover:bg-red-50"><TrashIcon className="w-5 h-5" /></button>
+                                                            </>
+                                                        )}
                                                     </div>
                                                 </td>
                                             )}

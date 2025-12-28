@@ -18,6 +18,7 @@ import { ArrowLeftIcon, CalendarIcon, UserIcon, TagIcon, XMarkIcon, CheckCircleI
 import { toast } from "react-toastify";
 import Swal from 'sweetalert2';
 import {MentionsInput, Mention} from 'react-mentions';
+import { useProject } from '../context/ProjectContext'; 
 
 const mentionInputStyle = {
   control: {
@@ -70,17 +71,34 @@ const TaskDetail = () => {
   const { taskId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth(); // Lấy thông tin user hiện tại
+  const { user } = useAuth();
+  const { selectedProjectId, currentProjectRole } = useProject(); // ✅ THÊM
 
-  //Ref cho ô imput Subtask
   const subtaskInputRef = useRef(null);
   const isGeneratingRef = useRef(false);
-  const lastGenerateTime = useRef(0); //  Track thời gian lần cuối gọi AI
-  const COOLDOWN_MS = 5000; //5 giây cooldown
+  const lastGenerateTime = useRef(0);
+  const COOLDOWN_MS = 5000;
 
-  // Lấy role của user để phân quyền
-  const currentUserRole = (user?.role || "Member");
-  const canManage = ["Manager", "Admin"].includes(currentUserRole);
+  // ✅ FIX: Tính toán quyền giống MyTasks
+  const systemRole = user?.role || 'Member';
+  const isSystemAdmin = systemRole === 'Admin';
+  const projectRole = currentProjectRole || 'Member';
+  const effectiveRole = isSystemAdmin ? 'Admin' : projectRole;
+  
+  // ✅ FIX: Check quyền quản lý
+  const canManage = ['Admin', 'Manager'].includes(effectiveRole);
+
+  // ✅ DEBUG: Log khi component mount
+  useEffect(() => {
+    console.log('🔍 [TaskDetail] Permission:', {
+      systemRole,
+      projectRole,
+      effectiveRole,
+      canManage,
+      selectedProjectId,
+      taskId
+    });
+  }, [systemRole, projectRole, effectiveRole, canManage, selectedProjectId, taskId]);
 
   // Data có thể được truyền qua navigate state (từ màn hình danh sách)
   const taskFromState = location.state?.task || null;
@@ -440,6 +458,7 @@ const TaskDetail = () => {
           Back to tasks
         </button>
 
+        {/*  Dùng canManage thay vì currentUserRole */}
         {canManage && (
           <div className="flex gap-2">
             <button 

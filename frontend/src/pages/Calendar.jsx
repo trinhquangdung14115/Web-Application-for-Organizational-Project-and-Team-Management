@@ -7,6 +7,7 @@ import {
 } from '@heroicons/react/24/outline'; 
 import { useOutletContext } from 'react-router-dom';
 import { useProject } from '../context/ProjectContext'; 
+import { useAuth } from '../services/AuthContext'; // ✅ THÊM DÒNG NÀY
 import { LoaderOverlay } from '../components/LoaderOverlay';
 import TaskSummary from '../components/TaskSummary'; 
 import { CalendarDayCell } from '../components/CalendarDayCell';
@@ -771,16 +772,21 @@ const RightPanel = ({ selectedDate, dayEvents, myAttendance, onCheckInSuccess, o
 
 // --- MAIN PAGE ---
 const Calendar = () => {
+    const { user } = useAuth(); 
     const { dynamicTasksSummary } = useOutletContext();
-    const { selectedProjectId } = useProject(); 
+    const { selectedProjectId, project, currentProjectRole, isLoadingProject } = useProject(); 
     const [isLoading, setIsLoading] = useState(true);
     const [currentMonth, setCurrentMonth] = useState(new Date());
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [projects, setProjects] = useState([]);
     const [allMeetings, setAllMeetings] = useState([]);
     const [myAttendance, setMyAttendance] = useState([]);
-    const [userRole, setUserRole] = useState('Member'); 
     
+    const systemRole = user?.role || 'Member';
+    const isSystemAdmin = systemRole === 'Admin';
+    const projectRole = currentProjectRole || 'Member';
+    const effectiveRole = isSystemAdmin ? 'Admin' : projectRole;
+
     // Notification State
     const [notification, setNotification] = useState({ message: '', type: '' });
 
@@ -796,15 +802,12 @@ const Calendar = () => {
 
     const fetchData = useCallback(async () => {
         try {
-            const userStr = localStorage.getItem('user');
-            if (userStr) {
-                const user = JSON.parse(userStr);
-                setUserRole(user.role);
-            }
             const [projRes, attRes, meetRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/projects`, { headers: getHeaders() }),
                 fetch(`${API_BASE_URL}/attendance/me`, { headers: getHeaders() }),
-                fetch((selectedProjectId && selectedProjectId !== 'all') ? `${API_BASE_URL}/projects/${selectedProjectId}/meetings` : `${API_BASE_URL}/meetings`, { headers: getHeaders() })
+                fetch((selectedProjectId && selectedProjectId !== 'all') 
+                    ? `${API_BASE_URL}/projects/${selectedProjectId}/meetings` 
+                    : `${API_BASE_URL}/meetings`, { headers: getHeaders() })
             ]);
 
             const projData = await projRes.json();
@@ -815,21 +818,34 @@ const Calendar = () => {
             setMyAttendance(attData.data || []);
             setAllMeetings(Array.isArray(meetData.data) ? meetData.data : []);
             setIsLoading(false);
-        } catch (error) { console.error(error); setIsLoading(false); }
+        } catch (error) { 
+            console.error(error); 
+            setIsLoading(false); 
+        }
     }, [selectedProjectId]); 
 
-    useEffect(() => { setIsLoading(true); fetchData(); }, [fetchData]);
+    useEffect(() => { 
+        setIsLoading(true); 
+        fetchData(); 
+    }, [fetchData]);
 
-    // Check quyền tạo meeting (Admin/Manager)
+    // Debug log
+    useEffect(() => {
+        console.log(' [Calendar] Role Check:', {
+            systemRole,
+            isSystemAdmin,
+            projectRole,
+            effectiveRole,
+            selectedProjectId
+        });
+    }, [systemRole, projectRole, effectiveRole, selectedProjectId]);
+
     const selectedDayEvents = allMeetings.filter(m => normalizeDate(m.startTime) === normalizeDate(selectedDate));
-    const canCreateMeeting = ['Admin', 'Manager'].includes(userRole);
-    // Logic delete: Admin/Manager hoặc Owner
+    const canCreateMeeting = ['Admin', 'Manager'].includes(effectiveRole);
+    
     const canDeleteMeeting = (meeting) => {
-        if (['Admin', 'Manager'].includes(userRole)) return true;
-        const creatorId = meeting.createdBy?._id || meeting.createdBy;
-        const currentUserStr = localStorage.getItem('user');
-        const currentUserId = currentUserStr ? JSON.parse(currentUserStr)._id : null;
-        return String(creatorId) === String(currentUserId);
+        if (canCreateMeeting) return true;
+        return String(meeting.createdBy?._id || meeting.createdBy) === String(user?._id || user?.id);
     };
 
     if (isLoading) return <div className="flex-1 p-8 flex items-center justify-center"><LoaderOverlay /></div>;
@@ -840,12 +856,29 @@ const Calendar = () => {
             
             <div className="mb-6"><TaskSummary summaryData={dynamicTasksSummary} /></div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-grow items-stretch">
-                <div className="flex flex-col h-full"><CalendarPanel currentMonth={currentMonth} setCurrentMonth={setCurrentMonth} selectedDate={selectedDate} onSelectDate={setSelectedDate} events={allMeetings} attendance={myAttendance}/></div>
                 <div className="flex flex-col h-full">
-                    <RightPanel selectedDate={selectedDate} dayEvents={selectedDayEvents} myAttendance={myAttendance} onCheckInSuccess={fetchData} 
-                        onOpenCreateModal={() => setIsCreateModalOpen(true)} onEventClick={setSelectedMeeting} projects={projects}
-                        canCreateMeeting={canCreateMeeting} userRole={userRole}
-                        onOpenIPModal={() => setIsIPModalOpen(true)} onOpenReportModal={() => setIsReportModalOpen(true)}
+                    <CalendarPanel 
+                        currentMonth={currentMonth} 
+                        setCurrentMonth={setCurrentMonth} 
+                        selectedDate={selectedDate} 
+                        onSelectDate={setSelectedDate} 
+                        events={allMeetings} 
+                        attendance={myAttendance}
+                    />
+                </div>
+                <div className="flex flex-col h-full">
+                    <RightPanel 
+                        selectedDate={selectedDate} 
+                        dayEvents={selectedDayEvents} 
+                        myAttendance={myAttendance} 
+                        onCheckInSuccess={fetchData} 
+                        onOpenCreateModal={() => setIsCreateModalOpen(true)} 
+                        onEventClick={setSelectedMeeting} 
+                        projects={projects}
+                        canCreateMeeting={canCreateMeeting}
+                        userRole={effectiveRole}
+                        onOpenIPModal={() => setIsIPModalOpen(true)} 
+                        onOpenReportModal={() => setIsReportModalOpen(true)}
                         showNotification={showNotification}
                     />
                 </div>
