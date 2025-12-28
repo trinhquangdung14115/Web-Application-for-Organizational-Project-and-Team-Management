@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom'; // Import Portal
 import { 
     XMarkIcon, 
     PaperAirplaneIcon,
@@ -95,8 +96,9 @@ const ChatBox = ({ projectId, projectName, onClose, currentUser }) => {
         inputRef.current?.focus();
     };
 
-    return (
-        <div className="fixed bottom-4 right-4 w-96 h-[500px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-[70] animate-in slide-in-from-bottom-5 duration-300 font-sans">
+    // Sử dụng createPortal để đưa ChatBox ra ngoài body, thoát khỏi DOM của Navbar
+    return createPortal(
+        <div className="fixed bottom-4 right-4 w-96 h-[500px] bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col z-[9999] animate-in slide-in-from-bottom-5 duration-300 font-sans">
             
             {/* --- HEADER --- */}
             <div 
@@ -241,7 +243,8 @@ const ChatBox = ({ projectId, projectName, onClose, currentUser }) => {
                     <PaperAirplaneIcon className="w-5 h-5 -ml-0.5 mt-0.5 transform -rotate-45" />
                 </button>
             </form>
-        </div>
+        </div>,
+        document.body // DOM node đích
     );
 };
 

@@ -9,8 +9,13 @@ import { ChevronDownIcon, SparklesIcon,XMarkIcon,
   LightBulbIcon, 
   CalendarIcon, 
   CheckCircleIcon,
-  CheckCircleIcon as DoneIcon,
-  ExclamationTriangleIcon, FolderIcon } from '@heroicons/react/24/outline';
+  ExclamationTriangleIcon, 
+  FolderIcon,
+  ClipboardDocumentListIcon as TotalSolid, 
+  ClockIcon as ClockSolid, 
+  ArrowPathIcon as ProgressSolid, 
+  CheckCircleIcon as DoneSolid,
+  ExclamationTriangleIcon as WarningSolid, } from '@heroicons/react/24/outline';
   // 🔵 THÊM MỚI: Import Ant Design Components cho Dashboard Block mới
 import { Card, Row, Col, Statistic, Progress, List, Tag, Spin } from "antd";
 import { 
@@ -19,95 +24,6 @@ import {
 // 🔵 THÊM MỚI: Import Service Dashboard (đã tạo ở bước trước)
 import dashboardService from "../services/dashboardService";
 import { useProject } from '../context/ProjectContext';
-// ==================================================================================
-// 🔵 DRAGGABLE FAB COMPONENT (DESKTOP ONLY)
-// ==================================================================================
-const DraggableFAB = ({ onClick, isOpen }) => {
-    // Vị trí mặc định: Cách đáy 24px, cách trái 24px (Bottom-Left)
-    const [position, setPosition] = useState({ 
-        x: 24, 
-        y: window.innerHeight - 90 
-    });
-    const [isDragging, setIsDragging] = useState(false);
-    const offset = useRef({ x: 0, y: 0 });
-    const dragStartTime = useRef(0);
-
-    // --- MOUSE EVENTS ONLY (Desktop) ---
-    const handleMouseDown = (e) => {
-        setIsDragging(true);
-        dragStartTime.current = Date.now();
-        const rect = e.currentTarget.getBoundingClientRect();
-        offset.current = {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        };
-    };
-
-    useEffect(() => {
-        const handleMouseMove = (e) => {
-            if (!isDragging) return;
-            e.preventDefault();
-            const newX = e.clientX - offset.current.x;
-            const newY = e.clientY - offset.current.y;
-            
-            // Giới hạn không cho kéo ra ngoài màn hình
-            const maxX = window.innerWidth - 60; // 60 là width nút
-            const maxY = window.innerHeight - 60;
-
-            setPosition({
-                x: Math.min(Math.max(0, newX), maxX),
-                y: Math.min(Math.max(0, newY), maxY)
-            });
-        };
-
-        const handleMouseUp = () => {
-            setIsDragging(false);
-        };
-
-        if (isDragging) {
-            window.addEventListener('mousemove', handleMouseMove);
-            window.addEventListener('mouseup', handleMouseUp);
-        }
-
-        return () => {
-            window.removeEventListener('mousemove', handleMouseMove);
-            window.removeEventListener('mouseup', handleMouseUp);
-        };
-    }, [isDragging]);
-
-    const handleClick = () => {
-        // Nếu thời gian nhấn < 200ms thì coi là Click, ngược lại là Drag
-        if (Date.now() - dragStartTime.current < 200) {
-            onClick();
-        }
-    };
-
-    return (
-        <button
-            onMouseDown={handleMouseDown}
-            onClick={handleClick}
-            style={{ 
-                left: position.x, 
-                top: position.y,
-                position: 'fixed',
-                zIndex: 9999,
-                cursor: isDragging ? 'grabbing' : 'grab' // Icon bàn tay nắm/mở
-            }}
-            className={`p-4 rounded-full shadow-xl transition-transform duration-100 active:scale-95 group ring-4 ring-white/50 flex items-center justify-center
-                ${isOpen 
-                    ? 'bg-gray-800 text-white' 
-                    : 'bg-gradient-to-r from-[#3b064d] to-[#f35640] text-white hover:shadow-2xl'
-                }`}
-            title="AI Daily Brief"
-        >
-            {isOpen ? (
-                 <XMarkIcon className="w-6 h-6" />
-            ) : (
-                 <SparklesIcon className="w-6 h-6 text-yellow-300 group-hover:animate-pulse" />
-            )}
-        </button>
-    );
-};
 // ==================================================================================
 // 🔵 AI DAILY WIDGET COMPONENT
 // ==================================================================================
@@ -146,8 +62,6 @@ const AIDailyWidget = ({ onClose }) => {
             <SparklesIcon className="w-5 h-5 animate-pulse text-yellow-300" />
             <h3 className="font-bold text-lg tracking-wide">Today's Work</h3>
           </div>
-          
-           
         </div>
 
         {/* Content Area */}
@@ -251,14 +165,8 @@ const HomePage = () => {
   const [managerStats, setManagerStats] = useState(null);
   const [memberStats, setMemberStats] = useState(null);
   const [dashboardLoading, setDashboardLoading] = useState(false);
-
-
-
-  // ----------------------------------------------------------
-  // 🔵 STATE THÊM MỚI
-  // ----------------------------------------------------------
-  const [projects, setProjects] = useState([]);
-  // ----------------------------------------------------------
+// 🔵 NEW: State để xác định User đang xem Dashboard với tư cách gì (Admin/Manager/Member)
+  const [dashboardViewRole, setDashboardViewRole] = useState(null);
 
   const [stats, setStats] = useState(null);
   const [activities, setActivities] = useState([]);
@@ -275,44 +183,48 @@ const HomePage = () => {
     }
   }, []);
 
-  // 🔵 THÊM MỚI: Fetch dữ liệu Admin/Manager Stats
-  useEffect(() => {
+  // ✅ ĐOẠN CODE KÍCH HOẠT RELOAD DỮ LIỆU
+   useEffect(() => {
     if (!user) return;
 
     const fetchDashboardData = async () => {
       setDashboardLoading(true);
+      
+      // Reset data cũ để tránh hiển thị nhầm trong lúc loading
+      setAdminStats(null);
+      setManagerStats(null);
+      setMemberStats(null);
+
       try {
-        const promises = [];
-        // Block 1: Admin Stats
+        const projectIdParam = selectedProjectId || 'all';
+
+        // CASE 1: ADMIN (Luôn xem Admin Dashboard)
         if (user.role === 'Admin') {
-          promises.push(dashboardService.getAdminStats().then(data => ({ type: 'ADMIN', data })));
-        }
-        // Block 2: Manager Stats (Admin hoặc Manager đều lấy)
-        if (user.role === 'Manager'){
-        promises.push(dashboardService.getManagerStats().then(data => ({ type: 'MANAGER', data })));
-        }
-        if (user.role === 'Member'){
-            promises.push(dashboardService.getMemberStats().then(data => ({ type: 'MEMBER', data })));
-        }
-        try {
-            const res = await axiosInstance.get('/projects');
-            if (res.data.success) {
-                setProjects(res.data.data || []);
-            }
-        } catch (err) {
-            console.error("Fetch Projects Error:", err);
+          setDashboardViewRole('Admin');
+          const data = await dashboardService.getAdminStats(projectIdParam);
+          setAdminStats(data);
         }
         
+        // CASE 2: MANAGER HOẶC MEMBER (Cần kiểm tra quyền trong Project)
+        else {
+          // Bước 1: Thử lấy Manager Stats trước để xem User có quyền quản lý project này không
+          // (API getManagerStats sẽ trả về kpi.myProjects = 0 nếu không phải Manager)
+          const managerData = await dashboardService.getManagerStats(projectIdParam);
+          
+          // Kiểm tra quyền: Nếu myProjects > 0 -> Có quyền Manager trong project/context này
+          const isManagerInContext = managerData?.kpi?.myProjects > 0;
 
-        const results = await Promise.allSettled(promises);
-        results.forEach(result => {
-          if (result.status === 'fulfilled') {
-            const { type, data } = result.value;
-            if (type === 'ADMIN') setAdminStats(data);
-            if (type === 'MANAGER') setManagerStats(data);
-            if (type === 'MEMBER') setMemberStats(data);
+          if (isManagerInContext) {
+            setDashboardViewRole('Manager');
+            setManagerStats(managerData);
+          } else {
+            // Nếu không phải Manager -> Chuyển sang Member View và lấy Member Stats
+            setDashboardViewRole('Member');
+            const memberData = await dashboardService.getMemberStats(projectIdParam);
+            setMemberStats(memberData);
           }
-        });
+        }
+
       } catch (error) {
         console.error("Dashboard Service Error:", error);
       } finally {
@@ -321,7 +233,7 @@ const HomePage = () => {
     };
 
     fetchDashboardData();
-  }, [user]);
+  }, [user, selectedProjectId]); // Re-run khi đổi dự án
 
   // ----------------------------------------------------------
 
@@ -353,7 +265,7 @@ const HomePage = () => {
     };
 
     fetchData();
-  }, [selectedProjectId]);
+  }, [selectedProjectId, user]);
   // ----------------------------------------------------------
 
 
@@ -451,7 +363,7 @@ const HomePage = () => {
   const getAdminBarOption = () => ({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'value', boundaryGap: [0, 0.01] },
+    xAxis: { type: 'value', minInterval: 1, boundaryGap: [0, 0.01] },
     yAxis: { type: 'category', data: adminStats?.charts?.priorityDistribution.map(i => i.name) || [] },
     series: [{
         name: 'Tasks', type: 'bar',
@@ -463,7 +375,7 @@ const HomePage = () => {
   const getManagerBarOption = () => ({
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'value', boundaryGap: [0, 0.01] },
+    xAxis: { type: 'value', minInterval: 1, boundaryGap: [0, 0.01] },
     yAxis: { type: 'category', data: managerStats?.charts?.priorityDistribution.map(i => i.name) || [] },
     series: [{
         name: 'Tasks', type: 'bar',
@@ -526,12 +438,43 @@ const HomePage = () => {
     };
   };
 
-  // --- LOGIC PHÂN QUYỀN HIỂN THỊ ---
-  const isAdmin = user?.role === 'Admin';
-  const isManager = user?.role === 'Manager' || (managerStats?.kpi?.myProjects > 0); // Logic: Admin hoặc người có quản lý dự án
-  const isMember = user?.role === 'Member';
+  // --- RENDER HELPERS: Sử dụng dashboardViewRole thay vì user.role ---
+  const isAdminView = dashboardViewRole === 'Admin';
+  const isManagerView = dashboardViewRole === 'Manager';
+  const isMemberView = dashboardViewRole === 'Member';
   
-  
+// 🔵 FIX ERROR: Helper chuyển đổi Object số liệu thành Array cho TaskSummary Component
+  const formatTaskSummaryData = (data) => {
+    if (!data) return [];
+    // Nếu đã là Array (ví dụ dynamicTasksSummary) thì trả về luôn
+    if (Array.isArray(data)) return data;
+
+    // Mapping từ Object (keys backend trả về) sang Array (UI yêu cầu)
+    // Hỗ trợ cả 2 dạng key: 'todo' và 'todoTasks'
+    const total = data.totalTasks ?? data.total ?? 0;
+    const todo = data.todoTasks ?? data.todo ?? 0;
+    const doing = data.doingTasks ?? data.doing ?? 0;
+    const done = data.doneTasks ?? data.done ?? 0;
+    const overdue = data.overdueTasks ?? data.overdue ?? 0;
+
+   return [
+        { number: total,   label: 'Total',       icon: <TotalSolid />,    iconColor: 'text-gray-500',   bgColor: 'bg-gray-100',   textColor: 'text-gray-800' },
+        { number: todo,    label: 'Todo',        icon: <ClockSolid />,    iconColor: 'text-gray-500',   bgColor: 'bg-gray-100',   textColor: 'text-gray-600' },
+        { number: doing,   label: 'In Progress', icon: <ProgressSolid />, iconColor: 'text-blue-500',   bgColor: 'bg-blue-100',   textColor: 'text-blue-600' },
+        { number: done,    label: 'Done',        icon: <DoneSolid />,     iconColor: 'text-green-500',  bgColor: 'bg-green-100',  textColor: 'text-green-600' },
+        { number: overdue, label: 'Overdue',     icon: <WarningSolid />,  iconColor: 'text-orange-500', bgColor: 'bg-orange-100', textColor: 'text-orange-600' },
+    ];
+  };
+
+  // --- PREPARE DATA FOR MEMBER SUMMARY (Mapping từ memberStats) ---
+  const memberSummaryData = memberStats?.kpi 
+    ? formatTaskSummaryData(memberStats.kpi) 
+    : dynamicTasksSummary;
+
+  const managerSummaryData = managerStats?.kpi
+    ? formatTaskSummaryData(managerStats.kpi)
+    : dynamicTasksSummary;  
+
   if (dashboardLoading) return <div className="flex h-screen items-center justify-center"><Spin size="large" /></div>;
 
 
@@ -541,7 +484,7 @@ const HomePage = () => {
       {/* ================================================================================== */}
       {/* 🔵 BLOCK 1: ADMIN DASHBOARD (Chỉ hiện cho ORG_ADMIN)                               */}
       {/* ================================================================================== */}
-      {isAdmin && adminStats && (
+      {isAdminView && adminStats && (
         <section className="animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="mb-4 flex items-center gap-2">
             <h2 className="text-xl font-bold text-gray-800 uppercase tracking-wide"> Organization Overview</h2>
@@ -608,22 +551,6 @@ const HomePage = () => {
 
           <div className="flex items-center gap-3 mb-6">
                 <div className='relative'>
-                    <FolderIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                    <select
-                      className="border border-gray-300 pl-9 px-2 py-2 rounded-lg appearance-none cursor-pointer bg-white"
-                      value={selectedProjectId || ""}
-                      onChange={(e) => {
-                        const project = projects.find(p => p._id === e.target.value);
-                        switchProject(e.target.value, project?.name || 'Unknown Project');
-                      }}
-                    >
-                      {projects.map((p) => (
-                        <option key={p._id} value={p._id}>{p.name}</option>
-                      ))}
-                    </select>
-                    <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
-                </div>
-                <div className='relative'>
                     <select className="border border-gray-300 rounded-lg px-7 py-2 text-gray-700 appearance-none cursor-pointer bg-white">
                       <option>This month</option>
                       <option>Last month</option>
@@ -637,7 +564,7 @@ const HomePage = () => {
               </div>
               </div>
 
-           <TaskSummary summaryData={dynamicTasksSummary} />
+           <TaskSummary summaryData={stats ? formatTaskSummaryData(stats) : dynamicTasksSummary} />
 
           <Row gutter={[16, 16]} className='mb-6'>
             <Col xs={24} lg={16}>
@@ -734,35 +661,13 @@ const HomePage = () => {
       {/* ================================================================================== */}
       {/* 🔵 BLOCK 2: MANAGER DASHBOARD (Hiện cho Manager)                           */}
       {/* ================================================================================== */}
-      {isManager && managerStats && (
+      {isManagerView && managerStats && (
         <section className="animate-in fade-in slide-in-from-top-4 duration-700 delay-100 ">
            {/* Dùng Divider hoặc khoảng cách để phân tách */}
           
           <div className="mb-2 flex items-center gap-2  border-gray-200 pt-6 justify-between">
             <h2 className="text-xl font-bold text-gray-800 uppercase tracking-wide"> Management Overview</h2>
             <div className="flex items-center gap-3 mb-6">
-                <div className='relative'>
-                    <FolderIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                    <select
-                      className="border border-gray-300 pl-9 px-2 py-2 rounded-lg appearance-none cursor-pointer bg-white"
-                      value={selectedProjectId || ""}
-                      onChange={(e) => {
-                        const project = projects.find(p => p._id === e.target.value);
-                        switchProject(e.target.value, project?.name || 'Unknown Project');
-                      }}
-                    >
-                      {/* Thêm logic filter trước khi map */}
-                      {projects
-                        ?.filter(p => {
-                            const currentUserId = user?._id || user?.uid; 
-                            return p.ownerId === currentUserId || p.members?.includes(currentUserId);
-                        })
-                        .map((p) => (
-                          <option key={p._id} value={p._id}>{p.name}</option>
-                      ))}
-                    </select>
-                    <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
-                </div>
                 <div className='relative'>
                     <select className="border border-gray-300 rounded-lg px-7 py-2 text-gray-700 appearance-none cursor-pointer bg-white">
                       <option>This month</option>
@@ -796,7 +701,7 @@ const HomePage = () => {
             </Col>
           </Row>
 
-           <TaskSummary summaryData={dynamicTasksSummary} />
+          <TaskSummary summaryData={managerSummaryData}></TaskSummary>
 
           <Row gutter={[16, 16]} className='mb-6'>
             <Col xs={24} lg={16}>
@@ -892,10 +797,10 @@ const HomePage = () => {
       {/* ================================================================================== */}
       {/* 🔵 BLOCK 3: MEMBER AREA */}
       {/* ================================================================================== */}
-      {isMember && (
+      {isMemberView && memberStats && (
       <section className='relative'>
       <section className="animate-in fade-in slide-in-from-top-4 duration-700 delay-200">
-        <TaskSummary summaryData={dynamicTasksSummary} />
+        <TaskSummary summaryData={memberSummaryData} />
       </section>
         <section className="animate-in fade-in slide-in-from-top-4 duration-700 delay-300">
           <div className="mb-4 mt-8 flex items-center justify-between border-t border-gray-200 pt-6">
@@ -903,22 +808,6 @@ const HomePage = () => {
              
              {/* Filter + Export (Code Gốc) */}
              <div className="flex items-center gap-3">
-                <div className='relative'>
-                    <FolderIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-                    <select
-                      className="border border-gray-300 pl-9 px-2 py-2 rounded-lg appearance-none cursor-pointer bg-white"
-                      value={selectedProjectId || ""}
-                      onChange={(e) => {
-                        const project = projects.find(p => p._id === e.target.value);
-                        switchProject(e.target.value, project?.name || 'Unknown Project');
-                      }}
-                    >
-                      {projects.map((p) => (
-                        <option key={p._id} value={p._id}>{p.name}</option>
-                      ))}
-                    </select>
-                    <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
-                </div>
                 <div className='relative'>
                     <select className="border border-gray-300 rounded-lg px-7 py-2 text-gray-700 appearance-none cursor-pointer bg-white">
                       <option>This month</option>
@@ -1035,11 +924,18 @@ const HomePage = () => {
         <AIDailyWidget onClose={() => setShowAIBrief(false)} />
       )}
 
-      {/* 🔵 DRAGGABLE FAB REPLACES FIXED BUTTON */}
-      <DraggableFAB 
-        onClick={() => setShowAIBrief(!showAIBrief)} 
-        isOpen={showAIBrief} 
-      />
+      {/* Floating Action Button (Giữ nguyên) */}
+      <button
+        onClick={() => setShowAIBrief(!showAIBrief)}
+        className="fixed bottom-6 right-6 z-50 p-5 bg-gradient-to-r from-[#3b064d] to-[#f35640] text-white rounded-full shadow-xl hover:shadow-2xl hover:scale-105 transition-all duration-300 group ring-4 ring-white/50"
+        title="AI Daily Brief"
+      >
+        {showAIBrief ? (
+             <XMarkIcon className="w-6 h-6" />
+        ) : (
+             <SparklesIcon className="w-6 h-6 text-yellow-300 group-hover:animate-pulse" />
+        )}
+      </button>
 
     </div>
   );

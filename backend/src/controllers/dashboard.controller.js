@@ -2,14 +2,14 @@ import dashboardService from "../services/dashboard.service.js";
 
 /**
  * @desc    Get Admin Dashboard Stats (KPIs, Charts, Top Projects)
- * @route   GET /dashboard/admin-stats
- * @access  Private (Admin only)
+ * @route   GET /dashboard/admin-stats?projectId=...
  */
 export const getAdminStats = async (req, res) => {
   try {
     const currentOrgId = req.user.currentOrganizationId;
+    const { projectId } = req.query; // Nhận projectId từ query
 
-    const stats = await dashboardService.getAdminStats(currentOrgId);
+    const stats = await dashboardService.getAdminStats(currentOrgId, projectId);
 
     res.status(200).json({
       success: true,
@@ -19,20 +19,20 @@ export const getAdminStats = async (req, res) => {
     if (err.message === 'ORGANIZATION_REQUIRED') {
       return res.status(400).json({ success: false, message: "Organization context missing" });
     }
-    
     res.status(500).json({ success: false, error: "ServerError", message: err.message });
   }
 };
 
 /**
  * @desc    Get Member Dashboard Stats (Personal KPIs & Activity)
- * @route   GET /dashboard/member-stats
- * @access  Private (Logged in user)
+ * @route   GET /dashboard/member-stats?projectId=...
  */
 export const getMemberStats = async (req, res) => {
     try {
       const userId = req.user._id;
-      const stats = await dashboardService.getMemberStats(userId);
+      const { projectId } = req.query; // Nhận projectId từ query
+
+      const stats = await dashboardService.getMemberStats(userId, projectId);
   
       res.status(200).json({
         success: true,
@@ -45,15 +45,15 @@ export const getMemberStats = async (req, res) => {
 
 /**
  * @desc    Get Manager Dashboard Stats (For Project Managers)
- * @route   GET /dashboard/manager-stats
- * @access  Private (Managers only)
+ * @route   GET /dashboard/manager-stats?projectId=...
  */
 export const getManagerStats = async (req, res) => {
     try {
       const userId = req.user._id;
       const currentOrgId = req.user.currentOrganizationId;
+      const { projectId } = req.query; // Nhận projectId từ query
   
-      const stats = await dashboardService.getManagerStats(userId, currentOrgId);
+      const stats = await dashboardService.getManagerStats(userId, currentOrgId, projectId);
   
       res.status(200).json({
         success: true,
