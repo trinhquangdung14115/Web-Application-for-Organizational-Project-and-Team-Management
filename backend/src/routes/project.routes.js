@@ -15,7 +15,8 @@ import {
   toggleArchive,
   removeProjectMember,
   updateMemberRole,
-  addMember
+  addMember,
+  exportAttendanceReport
 } from "../controllers/project.controller.js";
 import { verifyToken, checkRole, requireOrgAccess } from "../middlewares/auth.js";
 import { requireProjectManager, requireProjectMember } from "../middlewares/project.auth.js";
@@ -105,8 +106,24 @@ router.get("/projects/:id/invite-code", verifyToken, requireOrgAccess, requirePr
  * @desc    Reset invite code
  */
 router.patch("/projects/:id/invite-code", verifyToken, requireOrgAccess, requireProjectManager, resetInviteCode);
-//  Xóa thành viên khỏi dự án (Chỉ Project Manager/Admin)
+
+/**
+ * @route   DELETE /projects/:id/members/:memberId
+ * @desc    Remove a member from the project
+ */
 router.delete('/projects/:id/members/:memberId', verifyToken, requireOrgAccess, requireProjectManager, removeProjectMember);
-// Sửa Role thành viên trong dự án (Chỉ Project Manager/Admin)
+
+/**
+ * @route   PUT /projects/:id/members/:userId
+ * @desc    Update a member's role in the project
+ */
 router.put('/projects/:id/members/:userId', verifyToken, requireOrgAccess, requireProjectManager, updateMemberRole);
+
+/**
+ * @route   GET /projects/:id/report/attendance
+ * @desc    Export attendance report to CSV
+ */
+router.get("/projects/:id/report/attendance", verifyToken, requireOrgAccess, checkRole("Admin", "Manager"), exportAttendanceReport
+);
+
 export default router;

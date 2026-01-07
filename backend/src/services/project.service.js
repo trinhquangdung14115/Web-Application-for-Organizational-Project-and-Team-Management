@@ -11,6 +11,8 @@ import User from "../models/user.model.js";
 import Task from "../models/task.model.js";
 import ActivityLog from "../models/activityLog.model.js";
 import Organization from "../models/organization.model.js";
+import Attendance from "../models/attendance.model.js";
+import * as activityLogService from "./activityLog.service.js";
 
 /**
  * Generate random project code
@@ -320,48 +322,49 @@ export const updateProject = async (projectId, updateData, userId, currentOrgani
     throw new Error('INVALID_PROJECT_ID');
   }
 
-  if (!currentOrganizationId) {
-    throw new Error('ORGANIZATION_REQUIRED');
-  }
-
   const hasPermission = await checkProjectPermission(projectId, userId, currentOrganizationId);
   if (!hasPermission) {
-      throw new Error('FORBIDDEN_PROJECT_ACTION'); // Báo lỗi không có quyền
+      throw new Error('FORBIDDEN_PROJECT_ACTION'); 
   }
 
-  const project = await Project.findOne({
+  const oldProject = await Project.findOne({
     _id: projectId,
     organizationId: currentOrganizationId,
     deletedAt: null
-  });
+  }).lean();
 
-  if (!project) {
+  if (!oldProject) {
     throw new Error('PROJECT_NOT_FOUND');
   }
 
-  // Update fields
-  if (updateData.name) project.name = updateData.name.trim();
-  if (updateData.description !== undefined) project.description = updateData.description.trim();
-  if (updateData.startDate !== undefined) project.startDate = updateData.startDate;
-  if (updateData.endDate !== undefined) project.endDate = updateData.endDate;
-  if (updateData.deadline !== undefined) project.deadline = updateData.deadline;
-  if (updateData.status) project.status = updateData.status;
+  const updatedProject = await Project.findByIdAndUpdate(
+    projectId,
+    {
+      $set: {
+        name: updateData.name ? updateData.name.trim() : oldProject.name,
+        description: updateData.description !== undefined ? updateData.description.trim() : oldProject.description,
+        startDate: updateData.startDate,
+        endDate: updateData.endDate,
+        deadline: updateData.deadline,
+        status: updateData.status || oldProject.status
+      }
+    },
+    { new: true } 
+  ).lean();
 
-  await project.save();
+  await activityLogService.logActivity({
+    userId,
+    organizationId: currentOrganizationId,
+    projectId: projectId,
+    action: "UPDATE_PROJECT",
+    entityType: "PROJECT",
+    entityId: projectId,
+    description: `Updated project settings`,
+    oldData: oldProject,      
+    newData: updatedProject   
+  });
 
-  // Log activity
-  try {
-    await ActivityLog.create({
-      projectId: project._id,
-      userId,
-      action: "UPDATE_PROJECT",
-      description: `Updated project "${project.name}"`,
-    });
-  } catch (err) {
-    console.error("Failed to log activity:", err);
-  }
-
-  return project;
+  return updatedProject;
 };
 
 /**
@@ -694,7 +697,7 @@ export const getProjectActivities = async (projectId, currentOrganizationId, pag
     throw new Error('ORGANIZATION_REQUIRED');
   }
 
-  // Verify project belongs to organization
+  // 1. Verify project exists
   const project = await Project.findOne({
     _id: projectId,
     organizationId: currentOrganizationId,
@@ -707,9 +710,11 @@ export const getProjectActivities = async (projectId, currentOrganizationId, pag
 
   const skip = (page - 1) * limit;
 
+  // 2. Query & Count (Parallel)
   const [activities, total] = await Promise.all([
     ActivityLog.find({ projectId })
-      .populate('userId', 'name email avatar')
+      .populate('userId', 'name avatar')
+      .populate('taskId', 'title status') 
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limit),
@@ -1119,4 +1124,40 @@ export const joinProjectByCode = async (inviteCode, userId, currentOrganizationI
     // CLEANUP session
     session.endSession();
   }
+};
+
+export const exportAttendanceCSV = async (projectId, month, year, currentOrgId) => {
+  const start = new Date(year, month - 1, 1);
+  const end = new Date(year, month, 0, 23, 59, 59, 999);
+
+  const records = await Attendance.find({
+    organizationId: currentOrgId,
+    checkInTime: { $gte: start, $lte: end }
+  })
+  .populate("userId", "name email") 
+  .sort({ checkInTime: 1 });
+
+  const headers = ["Date", "Employee Name", "Email", "Check-in Time", "Check-in IP", "Status", "Note"];
+  const rows = [];
+
+  const formatDate = (date) => new Date(date).toLocaleDateString("en-GB"); 
+  const formatTime = (date) => new Date(date).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+
+  for (const record of records) {
+    if (!record.userId) continue; 
+
+    rows.push([
+      formatDate(record.checkInTime),
+      `"${record.userId.name}"`, 
+      record.userId.email,
+      formatTime(record.checkInTime),
+      record.checkInIp,
+      record.status,
+      `"${record.note || ""}"`
+    ].join(","));
+  }
+
+  const csvString = [headers.join(","), ...rows].join("\n");
+  
+  return csvString;
 };
