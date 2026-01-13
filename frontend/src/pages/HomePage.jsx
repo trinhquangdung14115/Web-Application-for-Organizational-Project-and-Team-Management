@@ -19,7 +19,7 @@ import { ChevronDownIcon, SparklesIcon,XMarkIcon,
   // 🔵 THÊM MỚI: Import Ant Design Components cho Dashboard Block mới
 import { Card, Row, Col, Statistic, Progress, List, Tag, Spin } from "antd";
 import { 
-  ProjectOutlined, TeamOutlined, CheckCircleOutlined as AntCheckCircleOutlined 
+  ProjectOutlined, TeamOutlined, CheckCircleOutlined as AntCheckCircleOutlined,  LoadingOutlined 
 } from "@ant-design/icons";
 // 🔵 THÊM MỚI: Import Service Dashboard (đã tạo ở bước trước)
 import dashboardService from "../services/dashboardService";
@@ -90,12 +90,12 @@ const AIDailyWidget = ({ onClose }) => {
               <div className="bg-white p-5 rounded-xl border border-indigo-100 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 left-0 w-1 h-full bg-[#f35640]"></div>
                 <p className="text-gray-800 font-medium leading-relaxed text-base">
-                  {data.greeting}
+                  {data?.greeting || "Hello There"}
                 </p>
               </div>
 
               {/* Task Highlights */}
-              {data.task_highlights && data.task_highlights.length > 0 && (
+              {data?.task_highlights && data?.task_highlights?.length > 0 && (
                 <div>
                   <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <LightBulbIcon className="w-4 h-4 text-yellow-500" /> Focus Today
@@ -124,7 +124,7 @@ const AIDailyWidget = ({ onClose }) => {
               )}
 
               {/* Meetings */}
-              {data.upcoming_meetings && data.upcoming_meetings.length > 0 && (
+              {data?.upcoming_meetings && data?.upcoming_meetings?.length > 0 && (
                 <div>
                   <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
                     <CalendarIcon className="w-4 h-4 text-purple-500" /> Meetings
@@ -158,7 +158,7 @@ const AIDailyWidget = ({ onClose }) => {
 
 const HomePage = () => {
   const { selectedProjectId, selectedProjectName, switchProject } = useProject();
-  const { dynamicTasksSummary } = useOutletContext();
+  const { dynamicTasksSummary } = useOutletContext() || {};
   // 🔵 THÊM MỚI: State cho User Role và Dashboard Data mới
   const [user, setUser] = useState(null);
   const [adminStats, setAdminStats] = useState(null);
@@ -172,6 +172,10 @@ const HomePage = () => {
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAIBrief, setShowAIBrief] = useState(false);
+
+  const currentDate = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1); // 1-12
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
 
   // 🔵 THÊM MỚI: Lấy User từ LocalStorage để phân quyền
   useEffect(() => {
@@ -201,7 +205,7 @@ const HomePage = () => {
         // CASE 1: ADMIN (Luôn xem Admin Dashboard)
         if (user.role === 'Admin') {
           setDashboardViewRole('Admin');
-          const data = await dashboardService.getAdminStats(projectIdParam);
+          const data = await dashboardService.getAdminStats(projectIdParam, selectedMonth, selectedYear);
           setAdminStats(data);
         }
         
@@ -209,7 +213,7 @@ const HomePage = () => {
         else {
           // Bước 1: Thử lấy Manager Stats trước để xem User có quyền quản lý project này không
           // (API getManagerStats sẽ trả về kpi.myProjects = 0 nếu không phải Manager)
-          const managerData = await dashboardService.getManagerStats(projectIdParam);
+          const managerData = await dashboardService.getManagerStats(projectIdParam, selectedMonth, selectedYear);
           
           // Kiểm tra quyền: Nếu myProjects > 0 -> Có quyền Manager trong project/context này
           const isManagerInContext = managerData?.kpi?.myProjects > 0;
@@ -220,7 +224,7 @@ const HomePage = () => {
           } else {
             // Nếu không phải Manager -> Chuyển sang Member View và lấy Member Stats
             setDashboardViewRole('Member');
-            const memberData = await dashboardService.getMemberStats(projectIdParam);
+            const memberData = await dashboardService.getMemberStats(projectIdParam, selectedMonth, selectedYear);
             setMemberStats(memberData);
           }
         }
@@ -233,7 +237,7 @@ const HomePage = () => {
     };
 
     fetchDashboardData();
-  }, [user, selectedProjectId]); // Re-run khi đổi dự án
+  }, [user, selectedProjectId, selectedMonth, selectedYear]); // Re-run khi đổi dự án
 
   // ----------------------------------------------------------
 
@@ -364,10 +368,10 @@ const HomePage = () => {
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: { type: 'value', minInterval: 1, boundaryGap: [0, 0.01] },
-    yAxis: { type: 'category', data: adminStats?.charts?.priorityDistribution.map(i => i.name) || [] },
+    yAxis: { type: 'category', data: adminStats?.charts?.priorityDistribution?.map(i => i.name) || [] },
     series: [{
         name: 'Tasks', type: 'bar',
-        data: adminStats?.charts?.priorityDistribution.map(i => i.value) || [],
+        data: adminStats?.charts?.priorityDistribution?.map(i => i.value) || [],
         itemStyle: { color: '#f35640', borderRadius: [0, 4, 4, 0] }
     }]
   });
@@ -376,10 +380,10 @@ const HomePage = () => {
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
     xAxis: { type: 'value', minInterval: 1, boundaryGap: [0, 0.01] },
-    yAxis: { type: 'category', data: managerStats?.charts?.priorityDistribution.map(i => i.name) || [] },
+    yAxis: { type: 'category', data: managerStats?.charts?.priorityDistribution?.map(i => i.name) || [] },
     series: [{
         name: 'Tasks', type: 'bar',
-        data: managerStats?.charts?.priorityDistribution.map(i => i.value) || [],
+        data: managerStats?.charts?.priorityDistribution?.map(i => i.value) || [],
         itemStyle: { color: '#f35640', borderRadius: [0, 4, 4, 0] }
     }]
   });
@@ -415,7 +419,7 @@ const HomePage = () => {
       grid: { left: '3%', right: '4%', bottom: '3%', top: '15%', containLabel: true },
       xAxis: { 
         type: 'category', 
-        data: memberStats?.charts?.last7DaysActivity.map(d => d.day) || [], 
+        data: memberStats?.charts?.last7DaysActivity?.map(d => d.day) || [], 
         axisTick: { show: false }, 
         axisLine: { lineStyle: { color: '#e5e7eb' } },
         axisLabel: { color: '#6b7280' } 
@@ -430,7 +434,7 @@ const HomePage = () => {
         name: 'Tasks Done', 
         type: 'bar', 
         barWidth: '40%', 
-        data: memberStats?.charts?.last7DaysActivity.map(d => d.value) || [], 
+        data: memberStats?.charts?.last7DaysActivity?.map(d => d.value) || [], 
         itemStyle: { color: '#f35640', borderRadius: [4, 4, 0, 0] },
         showBackground: true,
         backgroundStyle: { color: '#f9fafb', borderRadius: [4, 4, 0, 0] }
@@ -443,6 +447,44 @@ const HomePage = () => {
   const isManagerView = dashboardViewRole === 'Manager';
   const isMemberView = dashboardViewRole === 'Member';
   
+  // 🔵 UPDATE: Xử lý khi chọn dropdown gộp Month/Year
+  const handleDateChange = (e) => {
+    const value = e.target.value;
+    if (!value) return;
+    
+    // Tách chuỗi "10-2025" -> month=10, year=2025
+    const [m, y] = value.split('-');
+    if (m && y) {
+        setSelectedMonth(Number(m));
+        setSelectedYear(Number(y));
+    }
+  };
+
+  // 🔵 Helper: Tạo danh sách tháng/năm cho dropdown
+  // Tạo 12 tháng cho 2 năm gần nhất (Năm hiện tại và năm ngoái)
+  const generateMonthYearOptions = () => {
+    const options = [];
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const yearsToGenerate = [currentYear, currentYear - 1]; // 2 năm
+
+    yearsToGenerate.forEach(year => {
+        for (let month = 12; month >= 1; month--) {
+            // Chỉ hiện các tháng trong tương lai nếu muốn, ở đây ta hiện hết
+            // Hoặc giới hạn không hiện tháng tương lai của năm nay? (Tùy logic)
+            // Logic đơn giản: Hiện tất cả 12 tháng
+            options.push({
+                value: `${month}-${year}`,
+                label: `Month ${month}/${year}`
+            });
+        }
+    });
+    return options;
+  };
+
+  const monthYearOptions = generateMonthYearOptions();
+
+
 // 🔵 FIX ERROR: Helper chuyển đổi Object số liệu thành Array cho TaskSummary Component
   const formatTaskSummaryData = (data) => {
     if (!data) return [];
@@ -475,8 +517,11 @@ const HomePage = () => {
     ? formatTaskSummaryData(managerStats.kpi)
     : dynamicTasksSummary;  
 
-  if (dashboardLoading) return <div className="flex h-screen items-center justify-center"><Spin size="large" /></div>;
-
+  if (dashboardLoading) {
+      // 🔵 UPDATE: Tạo icon loading màu cam
+      const antIcon = <LoadingOutlined style={{ fontSize: 48, color: '#f35640' }} spin />;
+      return <div className="flex h-screen items-center justify-center"><Spin indicator={antIcon} /></div>;
+  }
 
   return (
     <div className="p-6 space-y-8 bg-gray-50 min-h-screen">
@@ -551,12 +596,17 @@ const HomePage = () => {
 
           <div className="flex items-center gap-3 mb-6">
                 <div className='relative'>
-                    <select className="border border-gray-300 rounded-lg px-7 py-2 text-gray-700 appearance-none cursor-pointer bg-white">
-                      <option>This month</option>
-                      <option>Last month</option>
-                      <option>This week</option>
-                    </select>
-                    <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                   <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <select 
+                    className="border border-gray-300 pl-9 px-4 py-2 rounded-lg appearance-none cursor-pointer bg-white text-sm min-w-[140px] shadow-sm hover:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                    value={`${selectedMonth}-${selectedYear}`}
+                    onChange={handleDateChange}
+                >
+                    {monthYearOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                </select>
+                <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                 </div>
                 <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[var(--color-brand)] text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity">
                   Export report
@@ -669,12 +719,17 @@ const HomePage = () => {
             <h2 className="text-xl font-bold text-gray-800 uppercase tracking-wide"> Management Overview</h2>
             <div className="flex items-center gap-3 mb-6">
                 <div className='relative'>
-                    <select className="border border-gray-300 rounded-lg px-7 py-2 text-gray-700 appearance-none cursor-pointer bg-white">
-                      <option>This month</option>
-                      <option>Last month</option>
-                      <option>This week</option>
-                    </select>
-                    <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                   <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <select 
+                    className="border border-gray-300 pl-9 px-4 py-2 rounded-lg appearance-none cursor-pointer bg-white text-sm min-w-[140px] shadow-sm hover:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                    value={`${selectedMonth}-${selectedYear}`}
+                    onChange={handleDateChange}
+                >
+                    {monthYearOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                </select>
+                <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                 </div>
                 <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[var(--color-brand)] text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity">
                   Export report
@@ -809,12 +864,17 @@ const HomePage = () => {
              {/* Filter + Export (Code Gốc) */}
              <div className="flex items-center gap-3">
                 <div className='relative'>
-                    <select className="border border-gray-300 rounded-lg px-7 py-2 text-gray-700 appearance-none cursor-pointer bg-white">
-                      <option>This month</option>
-                      <option>Last month</option>
-                      <option>This week</option>
-                    </select>
-                    <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                    <CalendarIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <select 
+                    className="border border-gray-300 pl-9 px-4 py-2 rounded-lg appearance-none cursor-pointer bg-white text-sm min-w-[140px] shadow-sm hover:border-indigo-300 focus:ring-2 focus:ring-indigo-100 outline-none transition-all"
+                    value={`${selectedMonth}-${selectedYear}`}
+                    onChange={handleDateChange}
+                >
+                    {monthYearOptions.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                </select>
+                <ChevronDownIcon className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                 </div>
                 <button className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-[var(--color-brand)] text-white rounded-lg shadow-sm hover:opacity-90 transition-opacity">
                   Export report
