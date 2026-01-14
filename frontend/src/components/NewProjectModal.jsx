@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 
-const PRIMARY_COLOR = '#f35640'; 
 const API_BASE_URL = 'http://localhost:4000/api';
 
 const NewProjectModal = ({ isOpen, onClose, onAddProject }) => {
@@ -10,7 +9,11 @@ const NewProjectModal = ({ isOpen, onClose, onAddProject }) => {
     const [deadline, setDeadline] = useState('');
     const [manager, setManager] = useState('');
     const [managersList, setManagersList] = useState([]);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     
+    //(chống click đúp)
+    const isSubmittingRef = useRef(false);
+
     // State lưu lỗi
     const [errors, setErrors] = useState({});
 
@@ -22,6 +25,8 @@ const NewProjectModal = ({ isOpen, onClose, onAddProject }) => {
             setDeadline(''); 
             setManager(''); 
             setErrors({});
+            setIsSubmitting(false);
+            isSubmittingRef.current = false;
             
             const fetchUsers = async () => {
                 try {
@@ -37,37 +42,30 @@ const NewProjectModal = ({ isOpen, onClose, onAddProject }) => {
         }
     }, [isOpen]);
 
-    if (!isOpen) return null;
-
-    const handleSubmit = (e) => {
-        e.preventDefault();
+    const handleSubmit = async () => {
         
+        // Chặn nếu đang gửi
+        if (isSubmittingRef.current) return;
+
         const newErrors = {};
         
         // Validate các trường bắt buộc
         if (!name.trim()) newErrors.name = "Project Name is required.";
-        if (!manager) newErrors.manager = "Please select a Manager.";
         if (!deadline) newErrors.deadline = "Deadline is required.";
 
-        // Validate Logic Ngày tháng 
         if (deadline) {
             const selectedDate = new Date(deadline);
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             const year = selectedDate.getFullYear();
 
-            // Điều kiện sai:
-            // 1. Không phải ngày hợp lệ (NaN)
-            // 2. Năm quá nhỏ (< 2000)
-            // 3. Năm quá lớn (> 2100) -> Chặn số 3222 ở đây
-            // 4. Ngày trong quá khứ (< today)
             if (
                 isNaN(selectedDate.getTime()) || 
                 year < 2000 || 
-                year > 2100 || 
+                year > 3000 || 
                 selectedDate < today
             ) {
-                newErrors.deadline = "Invalid date.";
+                newErrors.deadline = "Invalid date (must be future).";
             }
         }
         
@@ -75,11 +73,37 @@ const NewProjectModal = ({ isOpen, onClose, onAddProject }) => {
             setErrors(newErrors);
             return;
         }
-        
-        onAddProject({ name, description, deadline, manager });
+
+        isSubmittingRef.current = true;
+        setIsSubmitting(true);
+
+        try {
+            
+            const payload = { name, description, deadline };
+            if (manager) payload.manager = manager;
+
+            await onAddProject(payload); 
+            
+
+            
+        } catch (error) {
+            console.error("Error creating project:", error);
+            isSubmittingRef.current = false;
+            setIsSubmitting(false);
+        }
+
+    };
+
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') {
+            handleSubmit();
+        }
     };
 
     const getInputClass = (field) => `w-full px-3 py-2 border rounded-lg ${errors[field] ? 'border-red-500 bg-red-50' : 'border-gray-300'}`;
+
+    if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm" onClick={onClose}>
@@ -89,10 +113,11 @@ const NewProjectModal = ({ isOpen, onClose, onAddProject }) => {
                     <button onClick={onClose}><XMarkIcon className="w-6 h-6 text-gray-500" /></button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                {/*  Thay thẻ <form> bằng <div> để chặn trình duyệt tự submit */}
+                <div className="space-y-4" onKeyDown={handleKeyDown}>
                     <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Project Name <span className="text-red-500">*</span></label>
-                        <input type="text" className={getInputClass('name')} value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter project name" />
+                        <input type="text" className={getInputClass('name')} value={name} onChange={(e) => setName(e.target.value)} placeholder="Enter project name" autoFocus />
                         {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
                     </div>
                     
@@ -103,27 +128,41 @@ const NewProjectModal = ({ isOpen, onClose, onAddProject }) => {
                     
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Manager <span className="text-red-500">*</span></label>
+                            {/* Manager Optional */}
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Manager (Optional)</label>
                             <select className={getInputClass('manager')} value={manager} onChange={(e) => setManager(e.target.value)}>
-                                <option value="">Select Manager...</option>
+                                <option value="">-- Assign Later --</option>
                                 {managersList.map(m => (<option key={m._id || m.id} value={m._id || m.id}>{m.name}</option>))}
                             </select>
-                            {errors.manager && <p className="text-red-500 text-xs mt-1">{errors.manager}</p>}
                         </div>
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Deadline <span className="text-red-500">*</span></label>
                             <input type="date" className={getInputClass('deadline')} value={deadline} onChange={(e) => setDeadline(e.target.value)} />
-                            
-                            {/* Hiển thị thông báo lỗi */}
                             {errors.deadline && <p className="text-red-500 text-xs mt-1">{errors.deadline}</p>}
                         </div>
                     </div>
 
                     <div className="pt-4 flex justify-end space-x-3">
-                        <button type="button" onClick={onClose} className="px-5 py-2 text-sm border rounded-lg text-gray-700 hover:bg-gray-50">Cancel</button>
-                        <button type="submit" className="px-5 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90" style={{ backgroundColor: 'var(--color-brand)' }}>Create</button>
+                        <button 
+                            type="button" 
+                            onClick={onClose} 
+                            className="px-5 py-2 text-sm border rounded-lg text-gray-700 hover:bg-gray-50"
+                        >
+                            Cancel
+                        </button>
+                        
+                        {/*  Đổi type="submit" thành "button" và gọi onClick thủ công */}
+                        <button 
+                            type="button" 
+                            onClick={handleSubmit}
+                            disabled={isSubmitting}
+                            className="px-5 py-2 text-sm font-medium text-white rounded-lg hover:opacity-90 shadow-md disabled:opacity-50 disabled:cursor-not-allowed" 
+                            style={{ backgroundColor: 'var(--color-brand)' }}
+                        >
+                            {isSubmitting ? 'Creating...' : 'Create'}
+                        </button>
                     </div>
-                </form>
+                </div>
             </div>
         </div>
     );

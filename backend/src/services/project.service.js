@@ -104,8 +104,11 @@ export const createProject = async (projectData, creatorId, currentOrganizationI
       await ActivityLog.create([{
         projectId: project._id,
         userId: creatorId,
+        organizationId: currentOrganizationId,
         action: "CREATE_PROJECT",
-        content: `created project "${name}"`,
+        entityType: "PROJECT",
+        entityId: project._id,
+        content: `created project "${name}"`, 
       }], { session });
     } catch (err) {
       console.error("Failed to log activity:", err);

@@ -9,50 +9,39 @@
 export const validateCreateProject = (data) => {
   const errors = [];
 
-  if (!data.name || typeof data.name !== 'string') {
+  // Name validation (REQUIRED)
+  if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
     errors.push('Project name is required');
-  } else if (data.name.trim().length < 3 || data.name.trim().length > 200) {
-    errors.push('Project name must be between 3 and 200 characters');
+  } else if (data.name.trim().length < 3) {
+    errors.push('Project name must be at least 3 characters');
+  } else if (data.name.trim().length > 100) {
+    errors.push('Project name cannot exceed 100 characters');
   }
 
-  if (data.description && typeof data.description !== 'string') {
+  // Description validation (OPTIONAL)
+  if (data.description !== undefined && typeof data.description !== 'string') {
     errors.push('Description must be a string');
-  } else if (data.description && data.description.length > 1000) {
-    errors.push('Description must not exceed 1000 characters');
+  } else if (data.description && data.description.length > 500) {
+    errors.push('Description cannot exceed 500 characters');
   }
 
-  if (data.startDate) {
-    const startDate = new Date(data.startDate);
-    if (isNaN(startDate.getTime())) {
-      errors.push('Invalid start date format');
-    }
+  // Deadline validation (REQUIRED)
+  if (!data.deadline) {
+    errors.push('Deadline is required');
+  } else if (isNaN(Date.parse(data.deadline))) {
+    errors.push('Invalid deadline format');
   }
 
-  if (data.endDate) {
-    const endDate = new Date(data.endDate);
-    if (isNaN(endDate.getTime())) {
-      errors.push('Invalid end date format');
-    }
-  }
-
-  if (data.startDate && data.endDate) {
-    const start = new Date(data.startDate);
-    const end = new Date(data.endDate);
-    if (start > end) {
-      errors.push('Start date must be before end date');
-    }
-  }
-
-  if (data.deadline) {
-    const deadline = new Date(data.deadline);
-    if (isNaN(deadline.getTime())) {
-      errors.push('Invalid deadline format');
+  // Manager validation (OPTIONAL)
+  if (data.manager !== undefined && data.manager !== null && data.manager !== '') {
+    if (typeof data.manager !== 'string') {
+      errors.push('Manager must be a valid user ID');
     }
   }
 
   return {
     isValid: errors.length === 0,
-    errors,
+    errors
   };
 };
 
