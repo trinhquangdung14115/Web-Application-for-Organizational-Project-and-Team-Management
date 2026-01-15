@@ -63,7 +63,11 @@ export const createComment = async (req, res) => {
             userId: mentionedUser._id,
             type: "MENTION",
             content: `${currentUser.name} mentioned you in task "${task.title}"`,
-            relatedId: task._id
+            metadata: {
+                taskId: task._id,
+                projectId: task.projectId,
+                commentId: comment._id
+            }
           });
         }
       }

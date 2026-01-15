@@ -11,6 +11,7 @@ import { useAuth } from '../services/AuthContext'; // ✅ THÊM DÒNG NÀY
 import { LoaderOverlay } from '../components/LoaderOverlay';
 import TaskSummary from '../components/TaskSummary'; 
 import { CalendarDayCell } from '../components/CalendarDayCell';
+import axiosInstance from '../services/api';
 
 const API_BASE_URL = 'http://localhost:4000/api';
 
@@ -579,23 +580,32 @@ const CreateMeetingModal = ({ isOpen, onClose, projects, onSuccess, showNotifica
         e.preventDefault();
         setIsSubmitting(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/projects/${formData.projectId}/meetings`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(formData) });
-            if (!res.ok) {
-                const data = await res.json();
-                throw new Error(data.message || "Failed");
+            const payload = {
+                title: formData.title,
+                projectId: formData.projectId,
+                startTime: formData.startTime,
+                endTime: formData.endTime,
+                location: formData.location,
+                description: formData.description
+            };
+
+            const res = await axiosInstance.post(`/projects/${formData.projectId}/meetings`, payload);
+            
+            if (res.data.success) {
+                onSuccess(); 
+                onClose(); 
+                // Reset form
+                setFormData({ title: '', projectId: '', startTime: '', endTime: '', location: '', description: '' });
             }
-            onSuccess(); 
-            onClose(); 
-            setFormData(prev => ({...prev, title: '', location: '', description: ''}));
         } catch (err) { 
-            showNotification(err.message, "error"); 
+            showNotification(err.response?.data?.message || err.message, "error"); 
         } finally { 
             setIsSubmitting(false); 
         }
     };
 
     if (!isOpen) return null;
-
+    
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={onClose}>
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg p-6 animate-in zoom-in-95" onClick={e => e.stopPropagation()}>

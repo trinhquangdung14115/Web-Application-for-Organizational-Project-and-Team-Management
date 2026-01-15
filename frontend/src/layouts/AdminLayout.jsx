@@ -4,7 +4,7 @@ import SideBar from '../components/SideBar';
 import Navbar from '../components/NavBar'; 
 import { getProjects } from '../services/projectService';
 import { getTasksByProject } from '../services/taskService';
-import { usePollingNotifications } from '../hooks/usePollingNotifications';
+import { useRealtimeNotifications } from '../hooks/useRealtimeNotifications';
 import { 
     ClipboardDocumentListIcon as TotalSolid, 
     ClockIcon as ClockSolid,
@@ -113,7 +113,7 @@ const AdminLayout = () => {
 
   
   // Gọi hook polling 
-  const { unreadCount } = usePollingNotifications(30000); 
+  const { unreadCount } = useRealtimeNotifications(); 
 
   // Hàm Logout
   const handleLogout = () => {

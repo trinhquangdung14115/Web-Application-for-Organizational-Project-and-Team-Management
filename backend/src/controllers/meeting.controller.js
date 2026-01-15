@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Meeting from "../models/meeting.model.js";
 import Project from "../models/project.model.js";
 import { createNotification } from "../services/notification.service.js";
+import ProjectMember from "../models/projectMember.model.js";
 
 // --- HELPER FUNCTION: CHECK TRÙNG LỊCH ---
 const hasTimeConflict = async (projectId, start, end, excludeMeetingId = null) => {
@@ -117,142 +118,76 @@ export const getMeeting = async (req, res) => {
  */
 export const createMeeting = async (req, res) => {
   try {
-    const { projectId } = req.params;
-    const { title, description, startTime, endTime, location, attendees } = req.body;
+    // Lấy projectId từ params hoặc body đều được (ưu tiên body để khớp với logic form)
+    const { projectId, title, startTime, endTime, location, description } = req.body;
+    
+    const userId = req.user._id;
+    const currentOrgId = req.user.currentOrganizationId;
 
-    // Validate projectId
-    if (!mongoose.Types.ObjectId.isValid(projectId)) {
-      return res.status(400).json({
-        success: false,
-        error: "ValidationError",
-        message: "Invalid project ID format",
-      });
+    if (!projectId) {
+        return res.status(400).json({ success: false, message: "Project ID is required" });
     }
 
-    // Get organizationId from authenticated user (BE1 Multi-tenant)
-    const organizationId = req.user?.currentOrganizationId;
-    if (!organizationId) {
-      return res.status(400).json({
-        success: false,
-        error: "ValidationError",
-        message: "No active organization. Please switch to an organization first.",
-      });
+    // Validate Time
+    if (new Date(startTime) >= new Date(endTime)) {
+        return res.status(400).json({ success: false, message: "Start time must be before end time" });
     }
 
-    // Validate required fields
-    if (!title) {
-      return res.status(400).json({
-        success: false,
-        error: "ValidationError",
-        message: "Meeting title is required",
-      });
+    // Check conflict (chặn trùng lịch)
+    const isConflict = await hasTimeConflict(projectId, startTime, endTime);
+    if (isConflict) {
+         return res.status(409).json({ success: false, message: "Meeting time conflicts with an existing meeting." });
     }
 
-    if (!startTime || !endTime) {
-      return res.status(400).json({
-        success: false,
-        error: "ValidationError",
-        message: "Start time and end time are required",
-      });
-    }
+    // 1. TỰ ĐỘNG LẤY TẤT CẢ THÀNH VIÊN DỰ ÁN
+    const projectMembers = await ProjectMember.find({ 
+        projectId, 
+        status: "ACTIVE" 
+    }).select("userId");
 
-    if (!location || !location.trim()) {
-      return res.status(400).json({
-        success: false,
-        error: "ValidationError",
-        message: "Meeting location is required",
-      });
-    }
+    // Tạo danh sách ID thành viên
+    const allMemberIds = projectMembers.map(m => m.userId);
 
-    // Validate time logic
-    const start = new Date(startTime);
-    const end = new Date(endTime);
-
-    if (start >= end) {
-      return res.status(400).json({
-        success: false,
-        error: "ValidationError",
-        message: "Start time must be before end time",
-      });
-    }
-
-    // Check project exists
-    const project = await Project.findById(projectId);
-    if (!project || project.deletedAt) {
-      return res.status(404).json({
-        success: false,
-        error: "NotFoundError",
-        message: "Project not found",
-      });
-    }
-
-    // Validate project belongs to user's organization
-    if (project.organizationId?.toString() !== organizationId.toString()) {
-      return res.status(403).json({
-        success: false,
-        error: "ForbiddenError",
-        message: "Project does not belong to your organization",
-      });
-    }
-
-    // Check for time conflicts
-    const hasConflict = await hasTimeConflict(projectId, start, end);
-    if (hasConflict) {
-      return res.status(409).json({
-        success: false,
-        error: "ConflictError",
-        message: "Meeting time conflicts with an existing meeting in this project",
-      });
-    }
-
-    // Create meeting
+    // 2. Tạo cuộc họp
     const meeting = new Meeting({
-      organizationId: organizationId,
+      organizationId: currentOrgId,
       projectId,
       title,
-      description: description || "",
-      startTime: start,
-      endTime: end,
-      location: location.trim(),
-      attendees: attendees || [],
-      createdBy: req.user._id,
+      description,
+      startTime,
+      endTime,
+      location,
+      createdBy: userId,
+      attendees: allMemberIds // Lưu tất cả thành viên vào
     });
 
     await meeting.save();
 
-    if (attendees && attendees.length > 0) {
-        const uniqueAttendees = [...new Set(attendees)];
-        for (const attendeeId of uniqueAttendees) {
-            // Check valid ID and not send to self
-            if (attendeeId && mongoose.isValidObjectId(attendeeId) && attendeeId.toString() !== req.user._id.toString()) {
-                await createNotification({
-                    userId: attendeeId,
-                    type: 'MEETING_CREATED', 
-                    content: `You have been invited to meeting: "${title}" starting at ${start.toLocaleString()}`,
-                    metadata: {
-                        meetingId: meeting._id,
-                        projectId: projectId
-                    }
-                });
-            }
-        }
-    }
+    // 3. GỬI THÔNG BÁO (Trừ người tạo)
+    const recipients = allMemberIds.filter(id => id.toString() !== userId.toString());
 
-    // Populate before returning
-    await meeting.populate("createdBy", "name email");
-    await meeting.populate("attendees", "name email");
+    // Chạy song song để không block response
+    Promise.all(recipients.map(recipientId => 
+        createNotification({
+            userId: recipientId,
+            type: 'MEETING_CREATED',
+            content: `New meeting: "${title}" at ${new Date(startTime).toLocaleString('en-GB')}`,
+            metadata: {
+                meetingId: meeting._id,
+                projectId: projectId
+            }
+        })
+    )).catch(err => console.error("Notification Error:", err));
 
     res.status(201).json({
       success: true,
       message: "Meeting created successfully",
       data: meeting,
     });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      error: "ServerError",
-      message: err.message,
-    });
+
+  } catch (error) {
+    console.error("Create Meeting Error:", error);
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 

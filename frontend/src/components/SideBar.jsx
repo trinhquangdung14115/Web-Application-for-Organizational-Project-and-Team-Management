@@ -21,6 +21,7 @@ import {
     ChevronUpDownIcon, 
     CheckIcon
 } from '@heroicons/react/24/outline';
+import { useNotifications } from '../context/NotificationContext';
 
 // === MENU ITEMS ===
 const menuItems = [
@@ -52,6 +53,7 @@ const SidebarItem = ({ item, isActive, unreadCount, fullPath, isExpanded }) => {
             <div className="relative">
                 <item.icon className={`w-6 h-6 transition-colors duration-300 min-w-[24px] ${isActive ? 'text-white' : 'text-gray-400 group-hover:text-gray-600'}`} />
                 
+                {/* Chỉ hiện Dấu chấm khi KHÔNG mở rộng (!isExpanded) */}
                 {!isExpanded && item.name === 'Notifications' && unreadCount > 0 && (
                     <span className="absolute top-0 right-0 block h-2.5 w-2.5 rounded-full ring-2 ring-white bg-red-500 transform translate-x-1/2 -translate-y-1/2"></span>
                 )}
@@ -68,9 +70,10 @@ const SidebarItem = ({ item, isActive, unreadCount, fullPath, isExpanded }) => {
                 </span>
             </div>
             
-            {isExpanded && item.name === 'Notifications' && !isActive && unreadCount > 0 && (
-                <span className="ml-auto min-w-5 h-5 px-1.5 text-[10px] bg-red-500 rounded-full flex items-center justify-center text-white font-bold transition-opacity duration-300 delay-100">
-                    {unreadCount > 9 ? '9+' : unreadCount}
+            {/* Chỉ hiện Con số khi ĐANG mở rộng (isExpanded) */}
+            {isExpanded && item.name === 'Notifications' && unreadCount > 0 && (
+                <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-sm animate-pulse ml-auto">
+                    {unreadCount > 99 ? '99+' : unreadCount}
                 </span>
             )}
         </Link>
@@ -78,10 +81,11 @@ const SidebarItem = ({ item, isActive, unreadCount, fullPath, isExpanded }) => {
 };
 
 
-const SideBar = ({ unreadCount, basePath="" }) => {
+const SideBar = ({ basePath=""}) => {
     const location = useLocation();
     const { user } = useAuth(); 
     const [isHovered, setIsHovered] = useState(false);
+    const { unreadCount } = useNotifications();
 
     const currentPath = location.pathname;
     const isAdmin = user?.role === 'Admin';
