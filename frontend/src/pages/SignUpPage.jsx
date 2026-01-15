@@ -21,15 +21,45 @@ const SignUpPage = () => {
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  // Hàm này chỉ lo điều hướng nội bộ (Join Project hoặc về Home)
-  // Không lo payment nữa vì Backend đã trả link payment rồi
-  const handlePostSignupRedirect = (token) => {
-    // Xử lý Join Project (Nếu có invite code)
-    if (location.state?.action === 'join' && location.state?.code) {
-        navigate('/pending'); // Hoặc trang accept invite tùy logic của mày
-    } else {
-        navigate('/home');
+  const handlePostSignupRedirect = async (token, user) => {
+    // 1. Ưu tiên xử lý Payment (Nếu user đến từ trang Pricing và chọn Admin)
+    if (location.state?.from === 'pricing' && location.state?.plan === 'Admin') {
+        try {
+            const response = await fetch(`${API_BASE_URL}/payment/session`, { 
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (response.ok && data.url) {
+                window.location.href = data.url; 
+                return;
+            }
+        } catch (error) { console.error("Payment error:", error); }
     }
+
+    // 2. Xử lý Join Project (Invite Code)
+    // Nếu có invite code -> Backend đã tự add vào project -> Về Home (Bỏ qua bước chọn Plan vì là member)
+    if (location.state?.action === 'join' && location.state?.code) {
+        navigate('/pending'); 
+        return;
+    }
+
+    // 3. 🟢 [NEW] Kiểm tra Plan (Dành cho Owner mới tạo Organization)
+    // Logic: Nếu user tạo Org mới (không phải join) và chưa có plan -> Redirect về Pricing
+    // Giả sử backend trả về thông tin organization trong user hoặc ta cần check riêng
+    // Ở đây ta dùng logic đơn giản: Nếu đăng ký mới mà không phải join team -> Buộc chọn Plan
+    
+    // Kiểm tra xem user có phải là người tạo Org không (thường signup mới mặc định tạo Org Free)
+    // Nếu muốn bắt buộc chọn plan trả phí hoặc xác nhận plan Free:
+    if (!location.state?.plan && !location.state?.code) {
+        // Nếu không có thông tin plan từ state (không đi từ pricing) và không có code invite
+        // -> Redirect về pricing để chọn gói
+        navigate('/pricing');
+        return;
+    }
+
+    // Mặc định về Home nếu đã có plan hoặc là member join
+    navigate('/home');
   };
 
   const handleGoogleSuccess = async (credentialResponse) => {

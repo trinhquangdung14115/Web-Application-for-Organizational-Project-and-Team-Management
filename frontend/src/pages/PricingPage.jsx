@@ -114,7 +114,7 @@ export default function PricingPage() {
     }
   };
 
-  // --- 3. JOIN PROJECT ---
+  // --- LOGIC JOIN PROJECT ---
   const handleJoinProject = async () => {
       setJoinError('');
       if (!joinLink.trim()) {
@@ -129,12 +129,13 @@ export default function PricingPage() {
 
       const token = localStorage.getItem('token');
       
-      // Chưa login -> Sang Signup kèm mã Invite
+      // 1. Chưa login -> Chuyển sang SIGN UP (Kèm mã invite để xử lý sau)
       if (!token) {
-          navigate('/signup', { state: { action: 'join', code: inviteCode } });
+          navigate('/signup', { state: { from: 'pricing', action: 'join', code: inviteCode } });
           return;
       }
 
+      // 2. Đã login -> Gọi API Join trực tiếp
       setIsJoining(true);
       try {
           const res = await fetch(`${API_BASE_URL}/projects/join`, {
@@ -149,8 +150,28 @@ export default function PricingPage() {
           const data = await res.json();
           
           if (res.ok) {
-              // Join thành công -> Update token nếu cần thiết (thường join project ko đổi token org ngay, tùy logic)
-              window.location.href = '/home'; 
+              if (data.data && data.data.token) {
+                  localStorage.setItem('token', data.data.token);
+                  if (data.data.user) {
+                      localStorage.setItem('user', JSON.stringify(data.data.user));
+                  }
+                  
+                  // 🟢 [LOGIC MỚI] Check trạng thái Pending
+                  // Nếu API trả về status là PENDING hoặc user chưa có organization nào -> Pending Page
+                  // Giả sử API trả về data.data.membershipStatus hoặc ta check user.organizations
+                  const user = data.data.user || JSON.parse(localStorage.getItem('user'));
+                  
+                  // Nếu user join vào một project mới và đang chờ duyệt
+                  // (Thường API join sẽ trả về thông tin membership, ở đây ta giả định logic)
+                  
+                  // Logic an toàn: Nếu Join thành công, ta chuyển hướng đến trang Pending để user biết trạng thái
+                  // Nếu là Auto-Join (public project) thì về Home, nhưng thường invite code là private -> Pending
+                  navigate('/pending'); 
+                  return;
+              }
+
+              // Fallback nếu không có data rõ ràng (mặc định cho là Pending để an toàn)
+              navigate('/pending'); 
           } else {
               setJoinError(data.message || "Failed to join project.");
           }

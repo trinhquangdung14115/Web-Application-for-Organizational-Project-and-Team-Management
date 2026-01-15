@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Loader2, RefreshCw, LogOut, Clock, CheckCircle2 } from 'lucide-react';
-import { useAuth } from '../services/AuthContext';
+import { useAuth } from '../services/AuthContext'; // 🟢 Import useAuth
 import logoIcon from '../assets/images/logo.png'; 
 import logoText from '../assets/images/syncora-official.png'; 
 
@@ -9,9 +9,9 @@ const API_BASE_URL = 'http://localhost:4000/api';
 
 const PendingPage = () => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth(); // 🟢 Lấy refreshUser
   const [isChecking, setIsChecking] = useState(false);
-  const [status, setStatus] = useState('pending'); // 'pending' | 'approved'
+  const [status, setStatus] = useState('pending'); 
 
   const checkStatus = async () => {
     setIsChecking(true);
@@ -25,32 +25,32 @@ const PendingPage = () => {
       // Nếu có dự án -> Đã được Accept
       if (response.ok && data.data && data.data.length > 0) {
         setStatus('approved');
-        setTimeout(() => navigate('/home'), 1500); // Delay 1.5s để user thấy chữ Approved
+        
+        // 🟢 Cập nhật lại thông tin User (để lấy role mới) trước khi vào Home
+        await refreshUser();
+        
+        setTimeout(() => navigate('/home'), 1500); 
       }
     } catch (error) {
       console.error("Status check failed", error);
     } finally {
-      // Giữ loading giả thêm 500ms cho mượt
       setTimeout(() => setIsChecking(false), 500);
     }
   };
 
   useEffect(() => {
     checkStatus();
-    // Auto check mỗi 10 giây
     const interval = setInterval(checkStatus, 10000);
     return () => clearInterval(interval);
   }, []);
 
   return (
     <div className="min-h-screen bg-black text-white font-sans flex flex-col relative overflow-hidden">
-      {/* Background Decor */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-orange-600/20 rounded-full blur-[100px]"></div>
         <div className="absolute bottom-[-10%] left-[-10%] w-[500px] h-[500px] bg-blue-600/10 rounded-full blur-[100px]"></div>
       </div>
 
-      {/* Navbar */}
       <nav className="relative z-10 px-8 py-6 flex items-center justify-between">
         <div className="flex items-center gap-2 select-none">
             <img src={logoIcon} alt="Logo" className="w-10 h-10 object-contain" />
@@ -61,7 +61,6 @@ const PendingPage = () => {
         </button>
       </nav>
 
-      {/* Main Content */}
       <div className="flex-1 flex items-center justify-center p-4 relative z-10">
         <div className="w-full max-w-md bg-zinc-900/50 backdrop-blur-xl border border-white/10 rounded-3xl p-8 md:p-10 shadow-2xl text-center transform transition-all">
           

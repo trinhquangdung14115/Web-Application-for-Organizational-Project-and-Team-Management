@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'; 
+import { useLocation } from 'react-router-dom';
 import { 
     ChevronDownIcon, 
     ArrowRightEndOnRectangleIcon, 
@@ -13,13 +14,21 @@ import { useAuth } from '../services/AuthContext';
 import axiosInstance from '../services/api'; 
 import io from 'socket.io-client'; 
 
-const SOCKET_URL = 'http://localhost:4000'; // URL Server Socket
+const SOCKET_URL = 'http://localhost:4000'; 
 
 // === TÁCH HEADERICONS VÀ NHẬN PROPS ===
 const HeaderIcons = ({ unreadCount, onLogout }) => {
     const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-    const { user } = useAuth(); 
+    const { user: contextUser } = useAuth();
     
+    // 🔴 FIX: Lazy Initialization - Đọc user ngay lập tức từ storage
+    const [user, setUser] = useState(() => {
+        const stored = localStorage.getItem('user');
+        return stored ? JSON.parse(stored) : contextUser;
+    });
+    
+    const location = useLocation();
+
     // --- State Chat Mới Thêm ---
     const [isOpenChat, setIsOpenChat] = useState(false); 
     const [currentProject, setCurrentProject] = useState(null); 
@@ -33,11 +42,24 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
     const storedOrg = localStorage.getItem("organization");
     const currentOrg = storedOrg ? JSON.parse(storedOrg) : null;
 
+    // 🔴 FIX: Vẫn lắng nghe thay đổi để cập nhật
+    useEffect(() => {
+        const syncUser = () => {
+            const stored = localStorage.getItem('user');
+            if (stored) {
+                setUser(JSON.parse(stored));
+            } else {
+                setUser(contextUser);
+            }
+        };
+        syncUser();
+    }, [location.pathname, contextUser]); 
+
     // 2. Logic check: Chỉ hiện nút nếu là Admin và đang dùng gói FREE
     const isFreeAdmin = user?.role === 'Admin' && currentOrg?.plan === 'FREE';
 
     const canManageRequests = ['Admin', 'Manager'].includes(user?.role);
-    const showNavbarChat = user?.role === 'Manager' || user?.role === 'Member'; // Logic hiện chat
+    const showNavbarChat = user?.role === 'Manager' || user?.role === 'Member'; 
 
     const initials = user?.name
         ? user.name.split(" ").map(word => word[0]).join("").toUpperCase()
@@ -92,7 +114,6 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
             const myId = String(user._id || user.id);
             const senderId = String(msg.senderId?._id || msg.senderId);
 
-            // Nếu người gửi khác mình VÀ chat đang đóng -> Tăng thông báo
             if (senderId !== myId && !isOpenChatRef.current) {
                 setChatNotificationCount(prev => prev + 1);
             }
@@ -115,10 +136,8 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
     // 3. Hàm xử lý khi bấm nút Upgrade
     const handleUpgrade = async () => {
         try {
-            // Gọi API tạo session thanh toán
             const response = await axiosInstance.post('/payment/session');
             if (response.data && response.data.url) {
-                // Redirect sang trang thanh toán Stripe
                 window.location.href = response.data.url; 
             }
         } catch (error) {
@@ -152,7 +171,6 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
                 <div className="relative">
                     <button 
                         onClick={toggleChat}
-                        // Disable nếu chưa load xong project
                         disabled={!currentProject}
                         className={`relative p-2 rounded-full transition-all duration-300 
                             ${!currentProject ? 'opacity-50 cursor-wait' : 'opacity-100 cursor-pointer'}
@@ -162,7 +180,6 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
                     >
                         <ChatBubbleLeftRightIcon className="w-6 h-6" />
                         
-                        {/* Badge thông báo đỏ */}
                         {currentProject && !isOpenChat && chatNotificationCount > 0 && (
                             <div className="absolute top-0 right-0 transform translate-x-1/4 -translate-y-1/4 z-10">
                                 <span className="flex items-center justify-center w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full border-2 border-white shadow-sm animate-pulse">
@@ -172,7 +189,6 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
                         )}
                     </button>
                     
-                    {/* Component ChatBox */}
                     {isOpenChat && currentProject && (
                         <ChatBox 
                             projectId={currentProject._id} 
@@ -192,7 +208,6 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
 
             {/* Avatar/User Info */}
             <div className="relative">
-                {/* Nút bấm (avatar) */}
                 <button 
                     className="flex items-center space-x-2 cursor-pointer p-1"
                     onClick={() => setIsDropdownOpen(prev => !prev)}
@@ -214,35 +229,29 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
                             {initials}
                         </div>
                     )}
-                    {/* Hiển thị tên (ẩn trên mobile) */}
                     <span className="text-sm font-medium text-gray-700 hidden md:block">{user?.name}</span>
                     <ChevronDownIcon className="w-4 h-4 text-gray-700" />
                 </button>
 
-                {/* Dropdown Menu */}
                 {isDropdownOpen && (
                     <div 
                         className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border py-1 z-50"
                         onMouseLeave={() => setIsDropdownOpen(false)}
                     >
-                        {/* Hiển thị thông tin user */}
                         <div className="px-4 py-3 border-b">
                             <p className="text-sm font-medium text-gray-900 truncate">{user?.name}</p>
                             <p className="text-xs text-gray-500 truncate">{user?.role}</p>
                             
-                            {/* Hiển thị Badge Plan trong dropdown */}
                             <span className={`text-[10px] px-2 py-0.5 rounded-full mt-1 inline-block ${currentOrg?.plan === 'PREMIUM' ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}>
                                 {currentOrg?.plan || 'FREE'} PLAN
                             </span>
                         </div>
 
-                        {/* Nút Profile (UI-only) */}
                         <a href="#" className="flex items-center gap-3 w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
                             <UserCircleIcon className="w-5 h-5" />
                             Profile
                         </a>
 
-                        {/* Nút Logout */}
                         <button
                             onClick={onLogout}
                             className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
@@ -257,17 +266,14 @@ const HeaderIcons = ({ unreadCount, onLogout }) => {
     );
 };
 
-// Component Navbar chính (nhận props từ MainLayout)
 const Navbar = ({ title, subtitle, unreadCount, onLogout }) => {
   return (
     <header className="flex justify-between items-start p-5 border-b bg-white sticky top-0 z-40">
-        {/* Phần Title */}
         <div>
             <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
             <p className="text-sm text-gray-500">{subtitle}</p>
         </div>
 
-        {/* 4. Truyền tất cả props xuống HeaderIcons */}
         <HeaderIcons 
             unreadCount={unreadCount}
             onLogout={onLogout}
