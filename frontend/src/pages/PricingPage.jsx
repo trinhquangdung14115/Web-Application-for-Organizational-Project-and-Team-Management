@@ -6,7 +6,7 @@ import { ArrowLeft, Check, Crown, ArrowRight, AlertCircle, Loader2 } from 'lucid
 import logoIcon from '../assets/images/logo.png'; 
 import logoText from '../assets/images/syncora-official.png'; 
 
-const API_BASE_URL = 'http://localhost:4000/api';
+import { API_BASE_URL } from '../utils/constants';
 
 export default function PricingPage() {
   const navigate = useNavigate();

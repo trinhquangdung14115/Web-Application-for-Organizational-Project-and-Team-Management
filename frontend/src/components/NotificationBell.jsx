@@ -5,7 +5,8 @@ import {
     CalendarIcon, 
     ClipboardDocumentListIcon,
     UserGroupIcon,
-    ExclamationTriangleIcon
+    ExclamationTriangleIcon,
+    UserPlusIcon
 } from '@heroicons/react/24/solid';
 import { Link, useNavigate } from 'react-router-dom'; 
 import { useAuth } from '../services/AuthContext'; 
@@ -19,7 +20,7 @@ export default function NotificationBell() {
     const [isOpen, setIsOpen] = useState(false);
     const dropdownRef = useRef(null);
 
-    const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+    const { notifications, unreadCount, markAsRead } = useNotifications();
 
     const displayCount = unreadCount > 9 ? '9+' : unreadCount;
     const viewAllLink = user?.role === 'Admin' ? '/admin/notifications' : '/notifications';
@@ -42,6 +43,12 @@ export default function NotificationBell() {
         setIsOpen(false); 
 
         const meta = noti.metadata || {};
+
+        // THÊM: Nếu là NEW_MEMBER -> Vào trang Members
+        if (noti.type === 'NEW_MEMBER') {
+            navigate(`${basePath}/members`);
+            return;
+        }
 
         // 1. Nếu là MENTION -> Vào thẳng chi tiết Task
         if (noti.type === 'MENTION' && meta.taskId) {
@@ -89,6 +96,8 @@ export default function NotificationBell() {
             case 'PROJECT_ADD':
             case 'JOIN_REQUEST':
                 return { icon: UserGroupIcon, color: 'text-green-500', bg: 'bg-green-100' };
+            case 'NEW_MEMBER':
+                return { icon: UserPlusIcon, color: 'text-teal-600', bg: 'bg-teal-100' };
             case 'TASK_OVERDUE':
             case 'DUE_SOON':
                 return { icon: ExclamationTriangleIcon, color: 'text-red-500', bg: 'bg-red-100' };
@@ -117,9 +126,6 @@ export default function NotificationBell() {
                     <div className="px-4 py-3 border-b border-gray-50 flex justify-between items-center bg-gray-50/50">
                         <h3 className="font-bold text-gray-800 text-sm">Notifications</h3>
                         <div className="flex gap-3 text-xs font-semibold">
-                             <button onClick={markAllAsRead} className="text-gray-500 hover:text-[var(--color-brand)] transition">
-                                Mark all read
-                            </button>
                             <Link 
                                 to={viewAllLink} 
                                 onClick={() => setIsOpen(false)} 

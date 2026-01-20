@@ -15,7 +15,7 @@ import { EmptyState } from '../components/EmptyState';
 import NewProjectModal from '../components/NewProjectModal'; 
 import ProjectDetailDrawer from '../components/ProjectDetailDrawer';
 
-const API_BASE_URL = 'http://localhost:4000/api';
+import { API_BASE_URL } from '../utils/constants';
 
 // --- Sub-components (Định nghĩa ngay trong file để tránh lỗi import) ---
 

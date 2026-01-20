@@ -2,6 +2,8 @@ import * as projectService from "../services/project.service.js";
 import ProjectMember from "../models/projectMember.model.js"; // Import thêm để xử lý các logic phụ
 import Project from "../models/project.model.js";
 import mongoose from "mongoose";
+import { createNotification } from "../services/notification.service.js";
+import User from "../models/user.model.js";
 
 // GET /projects/:id/members
 export const getMembers = async (req, res) => {
@@ -141,18 +143,43 @@ export const approveMember = async (req, res) => {
   try {
     const { projectId, memberId } = req.params; // memberId ở đây là Membership ID
     const { action } = req.body; // "approve" hoặc "reject"
+    const actorId = req.user._id;
 
     if (!['approve', 'reject'].includes(action)) {
         return res.status(400).json({ success: false, message: "Invalid action" });
     }
 
-    const member = await ProjectMember.findById(memberId);
+    const member = await ProjectMember.findById(memberId).populate('userId', 'name'); // Populate name để làm noti
     if (!member) {
         return res.status(404).json({ success: false, message: "Request not found" });
     }
 
     if (action === "approve") {
         member.status = "ACTIVE";
+        
+        // 👇 THÊM: Gửi thông báo khi duyệt thành viên
+        try {
+            const project = await Project.findById(projectId).select('name');
+            const activeMembers = await ProjectMember.find({ projectId: projectId, status: 'ACTIVE' });
+
+            for (const m of activeMembers) {
+                // Không gửi cho người vừa được duyệt và người duyệt
+                if (String(m.userId) === String(member.userId._id) || String(m.userId) === String(actorId)) {
+                    continue;
+                }
+                
+                await createNotification({
+                    userId: m.userId,
+                    type: "NEW_MEMBER",
+                    content: `${member.userId.name} has joined the project "${project.name}"`,
+                    metadata: {
+                        projectId: projectId,
+                        newMemberId: member.userId._id
+                    }
+                });
+            }
+        } catch (notiErr) { console.error("Noti Error:", notiErr); }
+
     } else {
         member.status = "REJECTED"; // Hoặc có thể xóa luôn bản ghi tùy logic của mày
     }

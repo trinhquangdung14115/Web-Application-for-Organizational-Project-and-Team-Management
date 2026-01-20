@@ -4,8 +4,7 @@ import { Loader2, RefreshCw, LogOut, Clock, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '../services/AuthContext'; // 🟢 Import useAuth
 import logoIcon from '../assets/images/logo.png'; 
 import logoText from '../assets/images/syncora-official.png'; 
-
-const API_BASE_URL = 'http://localhost:4000/api';
+import { API_BASE_URL } from '../utils/constants';
 
 const PendingPage = () => {
   const navigate = useNavigate();

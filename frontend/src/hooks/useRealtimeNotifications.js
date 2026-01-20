@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import io from 'socket.io-client';
 import { useAuth } from '../services/AuthContext'; // Giả sử bạn có AuthContext để lấy user
+import { API_BASE_URL } from '../utils/constants';
 
 // URL Backend (Đảm bảo đúng port server đang chạy, ví dụ 4000)
 const SOCKET_URL = 'http://localhost:4000';
-const API_URL = 'http://localhost:4000/api';
 
 export const useRealtimeNotifications = () => {
     const { user } = useAuth();
@@ -24,7 +24,7 @@ export const useRealtimeNotifications = () => {
             const token = getToken();
             if (!token || !user) return;
 
-            const response = await fetch(`${API_URL}/notifications?limit=20`, {
+            const response = await fetch(`${API_BASE_URL}/notifications?limit=20`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
@@ -113,7 +113,7 @@ export const useRealtimeNotifications = () => {
         // Gọi API ngầm
         try {
             const token = getToken();
-            await fetch(`${API_URL}/notifications/${notificationId}/read`, {
+            await fetch(`${API_BASE_URL}/notifications/${notificationId}/read`, {
                 method: 'PATCH',
                 headers: {
                     'Content-Type': 'application/json',
@@ -133,7 +133,7 @@ export const useRealtimeNotifications = () => {
 
         try {
             const token = getToken();
-            await fetch(`${API_URL}/notifications/read-all`, {
+            await fetch(`${API_BASE_URL}/notifications/read-all`, {
                 method: 'PATCH', // Chú ý: Backend cần có route này (đã thấy trong notification.controller.js)
                 headers: {
                     'Content-Type': 'application/json',

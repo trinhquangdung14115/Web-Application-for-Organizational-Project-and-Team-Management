@@ -808,7 +808,11 @@ export const getProjectMembers = async (projectId, currentOrganizationId) => {
   if (!project) throw new Error('PROJECT_NOT_FOUND');
   
   // 2. Query ProjectMember
-  const members = await ProjectMember.find({ projectId })
+  // 👇 SỬA Ở ĐÂY: Thêm status: 'ACTIVE' để loại bỏ PENDING
+  const members = await ProjectMember.find({ 
+    projectId,
+    status: 'ACTIVE'
+  })
     .populate('userId', 'name email avatar role'); // Populate thêm role hệ thống của user
 
   // 3. Format Data khớp với Members.jsx
@@ -832,7 +836,7 @@ export const getProjectMembers = async (projectId, currentOrganizationId) => {
       // Các field của ProjectMember giữ ở ngoài
       role: realRole,       
       roles: [realRole],    
-      projectRole: realRole,      
+      projectRole: realRole,       
       status: m.status,
       joinedAt: m.createdAt
     };
@@ -1090,7 +1094,7 @@ export const joinProjectByCode = async (inviteCode, userId, currentOrganizationI
       userId,
       organizationId: targetOrgId,
       roleInProject: projectRole, // Role trong project
-      status: "PENDING"
+      status: "PENDING" // FIX: Đổi status từ ACTIVE thành PENDING
     }], { session });
     
     // 4.  Log activity (WITH SESSION)

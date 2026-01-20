@@ -12,8 +12,7 @@ import ReactECharts from 'echarts-for-react';
 import { formatDistanceToNow } from 'date-fns';
 import ChatBox from './ChatBox'; 
 import { useAuth } from '../services/AuthContext'; 
-
-const API_BASE_URL = 'http://localhost:4000/api';
+import { API_BASE_URL } from '../utils/constants';
 
 const getHeaders = () => ({
     'Content-Type': 'application/json',

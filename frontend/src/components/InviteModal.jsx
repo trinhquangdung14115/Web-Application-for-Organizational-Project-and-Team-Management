@@ -3,7 +3,7 @@ import {
     XMarkIcon, QrCodeIcon, ClipboardDocumentIcon, ArrowPathIcon, CheckCircleIcon 
 } from '@heroicons/react/24/outline';
 
-const API_BASE_URL = 'http://localhost:4000/api';
+import { API_BASE_URL } from '../utils/constants';
 
 const InviteModal = ({ isOpen, onClose, projectId }) => {
     const [inviteCode, setInviteCode] = useState('');

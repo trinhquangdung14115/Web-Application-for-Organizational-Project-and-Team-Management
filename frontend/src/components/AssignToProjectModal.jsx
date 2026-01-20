@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { XMarkIcon, UserPlusIcon, BriefcaseIcon } from '@heroicons/react/24/outline';
-
-const API_BASE_URL = 'http://localhost:4000/api';
+import { API_BASE_URL } from '../utils/constants';
 
 // Thêm prop 'user' để biết đang assign ai
 const AssignToProjectModal = ({ isOpen, onClose, onAssignSuccess, user }) => {

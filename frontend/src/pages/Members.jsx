@@ -12,7 +12,7 @@ import AddMemberModal from '../components/AddMemberModal';
 import AssignToProjectModal from '../components/AssignToProjectModal';
 import { useProject } from '../context/ProjectContext';
 import { getProjects } from '../services/projectService'; // ⚠️ THÊM IMPORT NÀY
-const API_BASE_URL = 'http://localhost:4000/api'; 
+import { API_BASE_URL } from '../utils/constants';
 
 // --- Helper Functions ---
 const getHeaders = () => ({

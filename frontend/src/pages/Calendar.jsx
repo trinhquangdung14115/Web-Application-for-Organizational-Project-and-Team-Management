@@ -12,8 +12,7 @@ import { LoaderOverlay } from '../components/LoaderOverlay';
 import TaskSummary from '../components/TaskSummary'; 
 import { CalendarDayCell } from '../components/CalendarDayCell';
 import axiosInstance from '../services/api';
-
-const API_BASE_URL = 'http://localhost:4000/api';
+import { API_BASE_URL } from '../utils/constants';
 
 // --- HELPER FUNCTIONS ---
 const getHeaders = () => ({

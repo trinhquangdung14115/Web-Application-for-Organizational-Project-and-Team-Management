@@ -8,7 +8,8 @@ import {
     ExclamationTriangleIcon,
     BellIcon,
     CheckIcon,
-    CheckCircleIcon
+    CheckCircleIcon,
+    UserPlusIcon
 } from '@heroicons/react/24/solid'; 
 import { formatDistanceToNow } from 'date-fns';
 
@@ -29,6 +30,8 @@ const getNotiStyle = (type) => {
         case 'PROJECT_ADD': 
         case 'JOIN_REQUEST':
             return { icon: UserGroupIcon, bg: 'bg-green-100', text: 'text-green-600' };
+        case 'NEW_MEMBER':
+            return { icon: UserPlusIcon, bg: 'bg-teal-100', text: 'text-teal-600' };
         case 'TASK_OVERDUE':
         case 'DUE_SOON':
              return { icon: ExclamationTriangleIcon, bg: 'bg-red-100', text: 'text-red-600' };
@@ -82,6 +85,12 @@ const Notification = () => {
 
         const basePath = user?.role === 'Admin' ? '/admin' : '';
         const meta = item.metadata || {};
+
+        // THÊM: NEW_MEMBER -> /members
+        if (item.type === 'NEW_MEMBER') {
+             navigate(`${basePath}/members`);
+             return;
+        }
 
         // 1. MENTION -> Vào thẳng chi tiết Task
         if (item.type === 'MENTION' && meta.taskId) {

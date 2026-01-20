@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react'; 
 import { XMarkIcon } from '@heroicons/react/24/outline';
+import { API_BASE_URL } from '../utils/constants';
 
-const PRIMARY_COLOR = '#f35640'; 
-const API_BASE_URL = 'http://localhost:4000/api';
 
 const AddMemberModal = ({ isOpen, onClose, onAddMember }) => {
     const [name, setName] = useState('');
