@@ -221,7 +221,7 @@ const ProfileInfo = () => {
                     <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity"><CameraIcon className="w-8 h-8 text-white" /></div>
                 </div>
                 <input type="file" ref={fileInputRef} onChange={handleFileSelect} className="hidden" accept="image/*" />
-                <button onClick={() => fileInputRef.current.click()} className="text-sm font-bold" style={{ color: PRIMARY_COLOR }}>Change Photo</button>
+                <button onClick={() => fileInputRef.current.click()} className="text-sm font-bold" style={{ color: 'var(--color-brand)' }}>Change Photo</button>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <input type="text" id="name" value={formData.name} onChange={handleChange} placeholder="Full Name" className="p-2 border rounded-lg focus:ring-1 focus:ring-[var(--color-brand)] outline-none"/>
@@ -321,7 +321,7 @@ const BillingSection = ({ organization, onRefresh }) => {
 
                     <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
                         {!isPremium && (
-                            <button onClick={() => window.location.href = '/pricing'} className="px-5 py-2.5 bg-gray-900 text-white text-sm font-bold rounded-xl hover:bg-black transition flex items-center justify-center gap-2">
+                            <button onClick={() => window.location.href = '/pricing'} className="px-6 py-2 text-white font-semibold rounded-lg bg-[var(--color-brand)] flex items-center justify-center gap-2">
                                 <CreditCardIcon className="w-4 h-4"/> Upgrade to Premium
                             </button>
                         )}
@@ -389,7 +389,7 @@ const AccountSettings = ({ organization, onRefresh }) => {
                         <input type="password" name="confirmPassword" value={passwords.confirmPassword} onChange={(e) => setPasswords({...passwords, confirmPassword: e.target.value})} placeholder="Confirm Password" className="p-2 border rounded-lg outline-none focus:ring-1 focus:ring-[var(--color-brand)]"/>
                     </div>
                     <div className="flex justify-end">
-                        <button onClick={handleUpdatePassword} disabled={isLoading} className="px-6 py-2 bg-black text-white rounded-lg hover:opacity-90 transition">Update Password</button>
+                        <button onClick={handleUpdatePassword} disabled={isLoading} className="px-6 py-2 text-white font-semibold rounded-lg bg-[var(--color-brand)]">Update Password</button>
                     </div>
                 </div>
             </div>
@@ -421,11 +421,11 @@ const Preferences = () => {
                 {notificationPrefs.map(pref => (
                     <div key={pref.id} className="flex justify-between items-center border-b pb-2">
                         <div><p className="font-medium">{pref.label}</p><p className="text-sm text-gray-500">{pref.description}</p></div>
-                        <input type="checkbox" checked={pref.enabled} onChange={() => {}} className="h-5 w-5" style={{ accentColor: PRIMARY_COLOR }} />
+                        <input type="checkbox" checked={pref.enabled} onChange={() => {}} className="h-5 w-5" style={{ accentColor: 'var(--color-brand)' }} />
                     </div>
                 ))}
             </div>
-            <button className="mt-8 px-6 py-2 text-white rounded-lg bg-[var(--color-brand)]">Save All</button>
+            <button className="mt-8 px-6 py-2 text-white font-semibold rounded-lg bg-[var(--color-brand)]">Save All</button>
         </div>
     );
 };
