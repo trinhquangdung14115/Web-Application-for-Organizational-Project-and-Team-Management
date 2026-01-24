@@ -425,7 +425,7 @@ export const createSubtask = async (req, res) => {
             action: "CREATE_SUBTASK",
             entityType: "Task",
             entityId: subtask._id,
-            description: `create subtask "${subtask.title}"`,
+            description: `created subtask "${subtask.title}"`,
         });
     } catch (logError) { console.error("[deleteTask] Log Error:", logError); }
     res.status(201).json({

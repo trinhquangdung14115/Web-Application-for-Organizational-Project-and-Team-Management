@@ -178,6 +178,7 @@ const formatActivityContent = (act) => {
       case "DELETE_TASK": actionText = "deleted task"; break;
       case "COMPLETE_TASK": actionText = "completed task"; break;
       case "REORDER_TASK": actionText = "reordered task"; break;
+      case "CREATE_SUBTASK": actionText = "created subtask"; break;
   }
 
   //  Entity Name từ Metadata
@@ -401,7 +402,7 @@ const HomePage = () => {
     series: [{
         name: 'Tasks', type: 'bar',
         data: adminStats?.charts?.priorityDistribution?.map(i => i.value) || [],
-        itemStyle: { color: '#f35640', borderRadius: [0, 4, 4, 0] }
+        itemStyle: { color: '#3b064d', borderRadius: [0, 4, 4, 0] }
     }]
   });
 
@@ -529,11 +530,11 @@ const HomePage = () => {
     const overdue = data.overdueTasks ?? data.overdue ?? 0;
 
    return [
-        { number: total,   label: 'Total',       icon: <TotalSolid />,    iconColor: 'text-gray-500',   bgColor: 'bg-gray-100',   textColor: 'text-gray-800' },
-        { number: todo,    label: 'Todo',        icon: <ClockSolid />,    iconColor: 'text-gray-500',   bgColor: 'bg-gray-100',   textColor: 'text-gray-600' },
-        { number: doing,   label: 'In Progress', icon: <ProgressSolid />, iconColor: 'text-blue-500',   bgColor: 'bg-blue-100',   textColor: 'text-blue-600' },
-        { number: done,    label: 'Done',        icon: <DoneSolid />,     iconColor: 'text-green-500',  bgColor: 'bg-green-100',  textColor: 'text-green-600' },
-        { number: overdue, label: 'Overdue',     icon: <WarningSolid />,  iconColor: 'text-orange-500', bgColor: 'bg-orange-100', textColor: 'text-orange-600' },
+        { number: total,   label: 'Total',       icon: <TotalSolid />,    iconColor: '#3f8600',      textColor: 'text-gray-800' },
+        { number: todo,    label: 'Todo',        icon: <ClockSolid />,    iconColor: '#3f8600',      textColor: 'text-gray-800' },
+        { number: doing,   label: 'In Progress', icon: <ProgressSolid />, iconColor: '#3f8600',      textColor: 'text-gray-800' },
+        { number: done,    label: 'Done',        icon: <AntCheckCircleOutlined />,     iconColor: '#3f8600',    textColor: 'text-gray-800' },
+        { number: overdue, label: 'Overdue',     icon: <WarningSolid />,  iconColor: '#3f8600',  textColor: 'text-gray-800' },
     ];
   };
 
@@ -571,7 +572,7 @@ const HomePage = () => {
             </Col>
             <Col xs={24} sm={12} lg={6}>
               <Card bordered={false} className="shadow-sm hover:shadow-md transition-all">
-                <Statistic title="Total Members" value={adminStats.kpi.totalMembers} prefix={<TeamOutlined />} valueStyle={{ color: '#3f8600' }} />
+                <Statistic title="Total Members" value={adminStats.kpi.totalMembers} prefix={<TeamOutlined />} />
               </Card>
             </Col>
             <Col xs={24} sm={12} lg={6}>

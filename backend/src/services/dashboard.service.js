@@ -143,9 +143,9 @@ class DashboardService {
       recentActivities 
     ] = await Promise.all([
       Project.countDocuments(projectBaseFilter),
-      Project.countDocuments({ ...projectBaseFilter, status: "active" }),
-      Project.countDocuments({ ...projectBaseFilter, status: "archived" }),
-      Project.countDocuments({ ...projectBaseFilter, status: "completed" }),
+      Project.countDocuments({ ...projectBaseFilter, status: "ACTIVE" }),
+      Project.countDocuments({ ...projectBaseFilter, status: "ARCHIVE" }),
+      Project.countDocuments({ ...projectBaseFilter, status: "COMPLETED" }),
       ProjectMember.distinct("userId", { organizationId: currentOrganizationId, status: "ACTIVE" }).then(res => res.length),
 
       // Task Counts (Snapshot - Không lọc theo ngày tạo để hiện đúng tổng số)

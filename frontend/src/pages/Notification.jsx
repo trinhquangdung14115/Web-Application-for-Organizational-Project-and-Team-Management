@@ -10,7 +10,7 @@ import {
     CheckIcon,
     CheckCircleIcon,
     UserPlusIcon
-} from '@heroicons/react/24/solid'; 
+} from '@heroicons/react/24/outline'; 
 import { formatDistanceToNow } from 'date-fns';
 
 import { LoaderOverlay } from '../components/LoaderOverlay';
@@ -21,22 +21,22 @@ import { useNotifications } from '../context/NotificationContext';
 const getNotiStyle = (type) => {
     switch (type) {
         case 'MENTION': 
-            return { icon: ChatBubbleLeftEllipsisIcon, bg: 'bg-blue-100', text: 'text-blue-600' };
+            return { icon: ChatBubbleLeftEllipsisIcon, bg: 'bg-gray-100',  };
         case 'TASK_ASSIGN': 
         case 'ASSIGNED': 
-            return { icon: ClipboardDocumentListIcon, bg: 'bg-purple-100', text: 'text-purple-600' };
+            return { icon: ClipboardDocumentListIcon,  bg: 'bg-gray-100', };
         case 'MEETING_CREATED': 
-            return { icon: CalendarIcon, bg: 'bg-orange-100', text: 'text-orange-600' };
+            return { icon: CalendarIcon, bg: 'bg-gray-100', };
         case 'PROJECT_ADD': 
         case 'JOIN_REQUEST':
-            return { icon: UserGroupIcon, bg: 'bg-green-100', text: 'text-green-600' };
+            return { icon: UserGroupIcon, bg: 'bg-gray-100', };
         case 'NEW_MEMBER':
-            return { icon: UserPlusIcon, bg: 'bg-teal-100', text: 'text-teal-600' };
+            return { icon: UserPlusIcon, bg: 'bg-gray-100',  };
         case 'TASK_OVERDUE':
         case 'DUE_SOON':
-             return { icon: ExclamationTriangleIcon, bg: 'bg-red-100', text: 'text-red-600' };
+             return { icon: ExclamationTriangleIcon, bg: 'bg-gray-100',  };
         default: 
-            return { icon: BellIcon, bg: 'bg-gray-100', text: 'text-gray-600' };
+            return { icon: BellIcon, bg: 'bg-gray-100',  };
     }
 };
 

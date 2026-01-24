@@ -6,7 +6,7 @@ import {
   ArrowPathIcon as ProgressSolid, 
   CheckCircleIcon as DoneSolid,
   ExclamationTriangleIcon as WarningSolid, 
-} from '@heroicons/react/24/solid';
+} from '@heroicons/react/24/outline';
 import Swal from 'sweetalert2';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
@@ -402,11 +402,11 @@ const MyTasks = () => {
     const dueSoonCount = tasks.filter((t) => t.dueSoon === true).length;
 
     const summaryData = [
-        { number: totalCount,     label: 'Total',      icon: <TotalSolid />,    iconColor: 'text-gray-500',   bgColor: 'bg-gray-100',   textColor: 'text-gray-800' },
-        { number: todoCount,      label: 'Todo',       icon: <ClockSolid />,    iconColor: 'text-gray-500',   bgColor: 'bg-gray-100',   textColor: 'text-gray-600' },
-        { number: inProgressCount,label: 'In Progress',icon: <ProgressSolid />, iconColor: 'text-blue-500',   bgColor: 'bg-blue-100',   textColor: 'text-blue-600' },
-        { number: doneCount,      label: 'Done',       icon: <DoneSolid />,     iconColor: 'text-green-500',  bgColor: 'bg-green-100',  textColor: 'text-green-600' },
-        { number: dueSoonCount,   label: 'Due soon',   icon: <WarningSolid />,  iconColor: 'text-orange-500', bgColor: 'bg-orange-100', textColor: 'text-orange-600' },
+       { number: totalCount,   label: 'Total',       icon: <TotalSolid />,    iconColor: '#3f8600',      textColor: 'text-gray-800' },
+        { number: todoCount,    label: 'Todo',        icon: <ClockSolid />,    iconColor: '#3f8600',      textColor: 'text-gray-800' },
+        { number: inProgressCount,   label: 'In Progress', icon: <ProgressSolid />, iconColor: '#3f8600',      textColor: 'text-gray-800' },
+        { number: doneCount,    label: 'Done',        icon: <DoneSolid />,     iconColor: '#3f8600',    textColor: 'text-gray-800' },
+        { number: dueSoonCount, label: 'Due Soon',     icon: <WarningSolid />,  iconColor: '#3f8600',  textColor: 'text-gray-800' },
     ];
 
     // Create Task
