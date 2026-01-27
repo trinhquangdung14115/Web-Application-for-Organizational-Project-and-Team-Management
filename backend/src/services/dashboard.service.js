@@ -4,6 +4,7 @@ import ProjectMember from "../models/projectMember.model.js";
 import Task from "../models/task.model.js";
 import Attendance from "../models/attendance.model.js"; 
 import ActivityLog from "../models/activityLog.model.js";
+import User from "../models/user.model.js";
 class DashboardService {
   /**
    * Helper tạo Regex bền bỉ: 
@@ -111,7 +112,7 @@ class DashboardService {
     return result;
   }
 
-  async getAdminStats(currentOrganizationId, projectId = null, month = null, year = null) {
+  async getAdminStats(currentUserId,currentOrganizationId, projectId = null, month = null, year = null) {
     if (!currentOrganizationId) throw new Error("ORGANIZATION_REQUIRED");
     
     const orgIdObj = new mongoose.Types.ObjectId(currentOrganizationId);
@@ -159,7 +160,11 @@ class DashboardService {
       Project.countDocuments({ ...projectBaseFilter, status: this._statusRegex("ACTIVE")  }),
       Project.countDocuments({ ...projectBaseFilter, status: this._statusRegex("ARCHIVED")  }),
       Project.countDocuments({ ...projectBaseFilter, status: this._statusRegex("COMPLETED")  }),
-      ProjectMember.distinct("userId", { organizationId: orgIdObj, status: this._statusRegex("ACTIVE")  }).then(res => res.length),
+      ProjectMember.distinct("userId", { 
+        organizationId: orgIdObj, 
+        status: this._statusRegex("ACTIVE"),
+        userId: { $ne: currentUserId } 
+      }).then(res => res.length),
 
       // Task Counts (Snapshot - Không lọc theo ngày tạo để hiện đúng tổng số)
       Task.aggregate([
@@ -285,7 +290,15 @@ console.log("DEBUG DEADLINES:", upcomingDeadlines); // Log ra terminal của nod
       Task.countDocuments({ ...snapshotMatch, status: "DONE" }),
       Task.countDocuments({ ...snapshotMatch, dueDate: { $lt: now }, status: { $ne: "DONE" } }),
       Task.aggregate([{ $match: snapshotMatch }, { $group: { _id: "$priority", count: { $sum: 1 } } }]),
-      ProjectMember.distinct("userId", { projectId: { $in: projectIds }, status: "ACTIVE" }).then(res => res.length),
+      ProjectMember.distinct("userId", { 
+          projectId: { $in: projectIds }, 
+          status: "ACTIVE" 
+      }).then(async (memberIds) => {
+          return await User.countDocuments({
+              _id: { $in: memberIds },
+              role: { $ne: 'Admin' }
+          });
+      }),
       this._getTodayAttendanceStats(currentOrganizationId, projectIds),
       // Daily Stats: Sử dụng filter ngày để vẽ biểu đồ
       this._getDailyTaskStats({ projectId: { $in: projectIds }, deletedAt: null }, dateMeta),

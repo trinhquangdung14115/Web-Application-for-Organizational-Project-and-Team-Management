@@ -7,6 +7,7 @@ import dashboardService from "../services/dashboard.service.js";
 export const getAdminStats = async (req, res) => {
   try {
     const currentOrgId = req.user.currentOrganizationId;
+    const currentUserId = req.user._id;
     const { projectId, month, year } = req.query;
 
     // Input Validation: Check month range as required by Lead
@@ -19,6 +20,7 @@ export const getAdminStats = async (req, res) => {
 
     // Pass month and year to service for time-based filtering
     const stats = await dashboardService.getAdminStats(
+      currentUserId,
       currentOrgId, 
       projectId, 
       month ? Number(month) : null, 
