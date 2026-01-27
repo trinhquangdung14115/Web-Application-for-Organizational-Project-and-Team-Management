@@ -21,11 +21,8 @@ export async function signup(req, res, next) {
   const session = await mongoose.startSession();
   
   try {
-    session.startTransaction();
-
     const validation = authValidator.validateSignup(req.body);
     if (!validation.isValid) {
-      await session.abortTransaction();
       return res.status(400).json({
         success: false,
         error: "ValidationError",
@@ -34,10 +31,10 @@ export async function signup(req, res, next) {
     }
 
     const { name, email, password, inviteCode } = req.body;
-    // Chuẩn hóa plan về chữ hoa, mặc định là FREE
     const plan = req.body.plan ? req.body.plan.toUpperCase() : "FREE";
 
-    // 1. Logic Join Project (Giữ nguyên)
+    session.startTransaction();
+
     let projectToJoin = null;
     if (inviteCode) {
       projectToJoin = await Project.findOne({
@@ -59,156 +56,224 @@ export async function signup(req, res, next) {
       }
     }
 
-    // 2. Create User
     const result = await authService.createUserWithSession(name, email, password, session);
     const userId = result.user.id || result.user._id;
+    const userDoc = result.user;
 
-    const user = await User.findById(userId).session(session);
-    if (!user) {
+    if (!userDoc) {
       await session.abortTransaction();
       throw new Error("USER_CREATION_FAILED");
     }
 
     let finalOrganizationId;
-    let finalOrgObj;
+    let finalOrgData;
+    let userRole;
 
-    // --- CASE A: JOIN EXISTING PROJECT ---
     if (projectToJoin) {
       finalOrganizationId = projectToJoin.organizationId;
-      finalOrgObj = await Organization.findById(finalOrganizationId).session(session);
+      const finalOrgObj = await Organization.findById(finalOrganizationId).session(session);
 
       if (!finalOrgObj || finalOrgObj.status === "INACTIVE") {
         await session.abortTransaction();
         return res.status(403).json({ success: false, error: "ForbiddenError", message: "Organization invalid or inactive" });
       }
 
-      user.currentOrganizationId = finalOrganizationId;
-      user.organizations = [finalOrganizationId];
-      user.role = "Member"; 
-      await user.save({ session }); 
+      await User.findByIdAndUpdate(
+        userId,
+        { 
+          currentOrganizationId: finalOrganizationId,
+          organizations: [finalOrganizationId],
+          role: "Member"
+        },
+        { session }
+      );
 
-      await OrganizationMember.create([{ userId: user._id, organizationId: finalOrganizationId, roleInOrganization: "ORG_MEMBER" }], { session }); 
+      await OrganizationMember.create([{ 
+        userId: userId, 
+        organizationId: finalOrganizationId, 
+        roleInOrganization: "ORG_MEMBER" 
+      }], { session }); 
       
-      const existingPrjMem = await ProjectMember.findOne({ userId: user._id, projectId: projectToJoin._id }).session(session);
+      const existingPrjMem = await ProjectMember.findOne({ 
+        userId: userId, 
+        projectId: projectToJoin._id 
+      }).session(session);
+      
       if (!existingPrjMem) {
-        await ProjectMember.create([{ userId: user._id, projectId: projectToJoin._id, organizationId: finalOrganizationId, roleInProject: "Member", status: "PENDING" }], { session }); 
+        await ProjectMember.create([{ 
+          userId: userId, 
+          projectId: projectToJoin._id, 
+          organizationId: finalOrganizationId, 
+          roleInProject: "Member", 
+          status: "PENDING" 
+        }], { session }); 
       }
 
-    } 
-    // --- CASE B: CREATE NEW ORGANIZATION ---
-    else {
-      const initialPlan = "FREE"; // Luôn tạo FREE trước
+      finalOrgData = {
+        id: finalOrgObj._id,
+        name: finalOrgObj.name,
+        ownerId: finalOrgObj.ownerId,
+        status: finalOrgObj.status,
+        plan: finalOrgObj.plan,
+        createdAt: finalOrgObj.createdAt
+      };
 
+      userRole = "Member";
+    } 
+    else {
       const [newOrg] = await Organization.create([{
         name: `${name}'s Organization`,
-        ownerId: user._id,
+        ownerId: userId,
         status: 'ACTIVE',
-        plan: initialPlan, 
+        plan: "FREE", 
         subscriptionStatus: 'INACTIVE',
         allowedIps: [],
-        attendanceSettings: { enableIpCheck: true, standardCheckInHour: 9, standardCheckOutHour: 17, allowLateCheckIn: true, lateThresholdMinutes: 15 }
+        attendanceSettings: { 
+          enableIpCheck: true, 
+          standardCheckInHour: 9, 
+          standardCheckOutHour: 17, 
+          allowLateCheckIn: true, 
+          lateThresholdMinutes: 15 
+        }
       }], { session }); 
 
       finalOrganizationId = newOrg._id;
-      finalOrgObj = newOrg;
 
-      user.currentOrganizationId = newOrg._id;
-      user.organizations = [newOrg._id];
-      user.role = "Admin"; 
-      await user.save({ session }); 
+      await User.findByIdAndUpdate(
+        userId,
+        {
+          currentOrganizationId: newOrg._id,
+          organizations: [newOrg._id],
+          role: "Admin"
+        },
+        { session }
+      );
 
-      await OrganizationMember.create([{ userId: user._id, organizationId: newOrg._id, roleInOrganization: "ORG_ADMIN" }], { session }); 
+      await OrganizationMember.create([{ 
+        userId: userId, 
+        organizationId: newOrg._id, 
+        roleInOrganization: "ORG_ADMIN" 
+      }], { session }); 
+
+      finalOrgData = {
+        id: newOrg._id,
+        name: newOrg.name,
+        ownerId: newOrg.ownerId,
+        status: newOrg.status,
+        plan: newOrg.plan,
+        createdAt: newOrg.createdAt
+      };
+
+      userRole = "Admin";
     }
 
     await session.commitTransaction();
 
-    // 3. Logic Payment (Chạy sau khi commit transaction)
     let paymentUrl = null;
     if (!projectToJoin && plan === "PREMIUM") {
-        try {
-            const sessionStripe = await stripe.checkout.sessions.create({
-                payment_method_types: ["card"],
-                customer_email: email, 
-                
-                line_items: [
-                    {
-                        price_data: {
-                            currency: "usd",
-                            product_data: {
-                                name: "Premium Plan Subscription",
-                                description: "Unlock unlimited projects (Signup Upgrade)",
-                            },
-                            unit_amount: 2000, 
-                            recurring: { interval: "month" },
-                        },
-                        quantity: 1,
-                    },
-                ],
-                mode: "subscription",
-                success_url: `${process.env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-                cancel_url: `${process.env.CLIENT_URL}/payment/cancel`,
-                metadata: {
-                    organizationId: finalOrganizationId.toString(),
-                    userId: user._id.toString(),
-                    targetPlan: "PREMIUM"
-                },
-                // Thêm metadata vào subscription để webhook invoice.payment_succeeded tìm được org
-                subscription_data: {
-                    metadata: {
-                        organizationId: finalOrganizationId.toString(),
-                        userId: user._id.toString(),
-                        targetPlan: "PREMIUM"
-                    }
-                },
-            });
-            paymentUrl = sessionStripe.url;
-        } catch (stripeError) {
-            console.error("Stripe Session Creation Failed:", stripeError);
-        }
+      try {
+        const sessionStripe = await stripe.checkout.sessions.create({
+          payment_method_types: ["card"],
+          customer_email: email, 
+          line_items: [{
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: "Premium Plan Subscription",
+                description: "Unlock unlimited projects (Signup Upgrade)",
+              },
+              unit_amount: 2000, 
+              recurring: { interval: "month" },
+            },
+            quantity: 1,
+          }],
+          mode: "subscription",
+          success_url: `${process.env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancel_url: `${process.env.CLIENT_URL}/payment/cancel`,
+          metadata: {
+            organizationId: finalOrganizationId.toString(),
+            userId: userId.toString(),
+            targetPlan: "PREMIUM"
+          },
+          subscription_data: {
+            metadata: {
+              organizationId: finalOrganizationId.toString(),
+              userId: userId.toString(),
+              targetPlan: "PREMIUM"
+            }
+          },
+        });
+        paymentUrl = sessionStripe.url;
+      } catch (stripeError) {
+        console.error("Stripe Session Creation Failed:", stripeError);
+      }
     }
 
-    // 4. Response
-    const tokenPayload = { sub: user._id.toString(), email: user.email, role: user.role, organizationId: finalOrganizationId.toString() };
+    const tokenPayload = { 
+      sub: userId.toString(), 
+      email: userDoc.email, 
+      role: userRole, 
+      organizationId: finalOrganizationId.toString() 
+    };
     const newToken = signToken(tokenPayload);
 
-    try { await sendWelcomeEmail(user.email, user.name); } catch (emailErr) { console.error("Failed to send welcome email:", emailErr); }
+    sendWelcomeEmail(userDoc.email, userDoc.name).catch(emailErr => {
+      console.error("Failed to send welcome email:", emailErr);
+    });
 
     return res.status(201).json({
       success: true,
       message: projectToJoin ? "Joined project successfully" : "User created successfully",
-      paymentUrl, // Trả về link thanh toán
+      paymentUrl,
       data: {
         token: newToken,
         tokenType: "Bearer",
         user: { 
-            id: user._id, 
-            name: user.name, 
-            email: user.email, 
-            role: user.role, 
-            currentOrganizationId: finalOrganizationId, 
-            organizations: user.organizations, 
-            createdAt: user.createdAt 
+          id: userId, 
+          name: userDoc.name, 
+          email: userDoc.email, 
+          role: userRole, 
+          currentOrganizationId: finalOrganizationId, 
+          organizations: [finalOrganizationId], 
+          createdAt: userDoc.createdAt 
         },
-        organization: { 
-            id: finalOrgObj._id, 
-            name: finalOrgObj.name, 
-            ownerId: finalOrgObj.ownerId, 
-            status: finalOrgObj.status, 
-            plan: finalOrgObj.plan, 
-            createdAt: finalOrgObj.createdAt 
-        },
-        ...(projectToJoin && { project: { id: projectToJoin._id, name: projectToJoin.name, code: projectToJoin.code } })
+        organization: finalOrgData,
+        ...(projectToJoin && { 
+          project: { 
+            id: projectToJoin._id, 
+            name: projectToJoin.name, 
+            code: projectToJoin.code 
+          } 
+        })
       },
     });
 
   } catch (err) {
-    await session.abortTransaction();
+    if (session.inTransaction()) {
+      await session.abortTransaction();
+    }
     console.error("[SIGNUP] Transaction failed:", err.message);
     
-    if (err.message === "EMAIL_EXISTS") return res.status(409).json({ success: false, error: "ConflictError", message: "Email already registered" });
-    if (err.message === "USER_CREATION_FAILED") return res.status(500).json({ success: false, error: "ServerError", message: "Failed to create user" });
+    if (err.message === "EMAIL_EXISTS") {
+      return res.status(409).json({ 
+        success: false, 
+        error: "ConflictError", 
+        message: "Email already registered" 
+      });
+    }
+    if (err.message === "USER_CREATION_FAILED") {
+      return res.status(500).json({ 
+        success: false, 
+        error: "ServerError", 
+        message: "Failed to create user" 
+      });
+    }
     
-    return res.status(500).json({ success: false, error: "ServerError", message: err.message || "Signup failed." });
+    return res.status(500).json({ 
+      success: false, 
+      error: "ServerError", 
+      message: err.message || "Signup failed." 
+    });
   } finally {
     session.endSession();
   }

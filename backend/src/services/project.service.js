@@ -805,17 +805,19 @@ export const getProjectMembers = async (projectId, currentOrganizationId) => {
     deletedAt: null
   });
 
-  if (!project) throw new Error('PROJECT_NOT_FOUND');
-  
+  if (!project) {
+    console.log(`Project ${projectId} not found in org ${currentOrganizationId} - returning empty members`);
+    return []; 
+  }  
   //  Query ProjectMember
-  // Thêm status: 'ACTIVE' để loại bỏ PENDING
+
   const members = await ProjectMember.find({ 
     projectId,
     status: 'ACTIVE'
   })
     .populate('userId', 'name email avatar role'); // Populate thêm role hệ thống của user
 
-  //Format Data khớp với Members.jsx
+  
   return members.map((m) => {
     if (!m.userId) return null;
 
@@ -823,7 +825,7 @@ export const getProjectMembers = async (projectId, currentOrganizationId) => {
     
 
     return {
-      _id: m._id, // Đây là membershipId (để xóa member khỏi project)
+      _id: m._id, 
       user: {
           _id: m.userId._id,
           name: m.userId.name,
@@ -831,9 +833,7 @@ export const getProjectMembers = async (projectId, currentOrganizationId) => {
           avatar: m.userId.avatar,
           role: m.userId.role // Role hệ thống (Admin/User)
       },
-      // --------------------------------------------------------
 
-      // Các field của ProjectMember giữ ở ngoài
       role: realRole,       
       roles: [realRole],    
       projectRole: realRole,       
