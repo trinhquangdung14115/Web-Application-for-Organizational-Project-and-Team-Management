@@ -6,16 +6,16 @@ Dự án được chia module rõ ràng, dễ mở rộng và triển khai.
 
 ---
 
-## 🚀 Cài đặt & Chạy dự án sau khi clone
+##  Cài đặt & Chạy dự án sau khi clone
 
-### 1️⃣ Clone project về máy
+### 1. Clone project về máy
 
 ```bash
 git clone https://github.com/<your-username>/Web-Application-for-Organizational-Project-and-Team-Management.git
 cd Web-Application-for-Organizational-Project-and-Team-Management
 
 ```
-### 2️⃣ Cài đặt dependencies
+### 2. Cài đặt dependencies
 
 Backend:
 
@@ -30,7 +30,7 @@ cd ../frontend
 npm install
 ```
 
-### 3️⃣ Cấu hình biến môi trường
+### 3. Cấu hình biến môi trường
 
 Tạo file .env trong thư mục backend/ dựa theo mẫu .env.example
 ```bash
@@ -39,7 +39,7 @@ MONGO_URI=<your_mongodb_atlas_connection>
 JWT_SECRET=<your_secret_key>
 ```
 
-### 4️⃣ Chạy server
+### 4. Chạy server
 Backend (Node.js + Express):
 ```bash
 cd backend
@@ -51,20 +51,20 @@ cd frontend
 npm run dev
 ```
 
-### 5️⃣ Cài đặt và Kết nối MongoDB (Local)
-1.Cài đặt và Kết nối MongoDB (Local)
+### 5. Cài đặt và Kết nối MongoDB (Local)
+1 Cài đặt và Kết nối MongoDB (Local)
 
 Link: https://www.mongodb.com/try/download/community
 Đảm bảo chọn “Install MongoDB as a Service” để MongoDB tự khởi động mỗi khi bật máy.
 
-2.Kiểm tra MongoDB đã hoạt động
+2 Kiểm tra MongoDB đã hoạt động
   
 ```bash
 mongod --version
 mongo
 ```
 
-3. Kết nối MongoDB với dự án
+3 Kết nối MongoDB với dự án
    
 Mở thư mục backend/
 Tạo file .env nếu chưa có, dựa trên mẫu .env.example
@@ -76,12 +76,12 @@ MONGO_URI=mongodb://127.0.0.1:27017/project_manager
 JWT_SECRET=mysecret
 ```
 
-4. Chạy server để test kết nối
+4 Chạy server để test kết nối
 ```bash
 cd backend
 npm run dev
 ```
-5. Cài đặt MongoDB Compass
+5 Cài đặt MongoDB Compass
 
 https://www.mongodb.com/try/download/compass
 
