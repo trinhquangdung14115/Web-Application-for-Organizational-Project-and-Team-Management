@@ -169,6 +169,52 @@ export async function signup(req, res, next) {
 
     await session.commitTransaction();
 
+    // 3. Logic Payment (Chạy sau khi commit transaction)
+    let paymentUrl = null;
+    if (!projectToJoin && plan === "PREMIUM") {
+        try {
+            const sessionStripe = await stripe.checkout.sessions.create({
+                payment_method_types: ["card"],
+                customer_email: email, 
+                
+                line_items: [
+                    {
+                        price_data: {
+                            currency: "usd",
+                            product_data: {
+                                name: "Premium Plan Subscription",
+                                description: "Unlock unlimited projects (Signup Upgrade)",
+                            },
+                            unit_amount: 2000, 
+                            recurring: { interval: "month" },
+                        },
+                        quantity: 1,
+                    },
+                ],
+                mode: "subscription",
+                success_url: `${process.env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${process.env.CLIENT_URL}/payment/cancel`,
+                metadata: {
+                    organizationId: finalOrganizationId.toString(),
+                    userId: userId.toString(), 
+                    targetPlan: "PREMIUM"
+                },
+                // Thêm metadata vào subscription để webhook invoice.payment_succeeded tìm được org
+                subscription_data: {
+                    metadata: {
+                        organizationId: finalOrganizationId.toString(),
+                        userId: userId.toString(), 
+                        targetPlan: "PREMIUM"
+                    }
+                },
+            });
+            paymentUrl = sessionStripe.url;
+        } catch (stripeError) {
+            console.error("Stripe Session Creation Failed:", stripeError);
+        }
+    }
+
+    // 4. Response
     const tokenPayload = { 
       sub: userId.toString(), 
       email: userDoc.email, 
@@ -177,25 +223,25 @@ export async function signup(req, res, next) {
     };
     const newToken = signToken(tokenPayload);
 
-    const needsPayment = !projectToJoin && plan === "PREMIUM";
+    try { await sendWelcomeEmail(user.email, user.name); } catch (emailErr) { console.error("Failed to send welcome email:", emailErr); }
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
       message: projectToJoin ? "Joined project successfully" : "User created successfully",
-      paymentPending: needsPayment, 
+      paymentUrl, // Trả về link thanh toán
       data: {
         token: newToken,
         tokenType: "Bearer",
         user: { 
-          id: userId, 
-          name: userDoc.name, 
-          email: userDoc.email, 
-          role: userRole, 
-          currentOrganizationId: finalOrganizationId, 
-          organizations: [finalOrganizationId], 
-          createdAt: userDoc.createdAt 
+            id: userId, 
+            name: userDoc.name, 
+            email: userDoc.email, 
+            role: userRole, 
+            currentOrganizationId: finalOrganizationId, 
+            organizations: [finalOrganizationId], 
+            createdAt: userDoc.createdAt 
         },
-        organization: finalOrgData,
+        organization: finalOrgData, 
         ...(projectToJoin && { 
           project: { 
             id: projectToJoin._id, 
@@ -205,63 +251,6 @@ export async function signup(req, res, next) {
         })
       },
     });
-
-    setImmediate(() => {
-      sendWelcomeEmail(userDoc.email, userDoc.name)
-        .then(() => {
-          console.log(`[SIGNUP] Welcome email sent to: ${userDoc.email}`);
-        })
-        .catch((emailErr) => {
-          console.error(`[SIGNUP] Failed to send welcome email to ${userDoc.email}:`, emailErr.message);
-        });
-    });
-
-    if (needsPayment) {
-      setImmediate(async () => {
-        try {
-          const sessionStripe = await stripe.checkout.sessions.create({
-            payment_method_types: ["card"],
-            customer_email: email, 
-            line_items: [{
-              price_data: {
-                currency: "usd",
-                product_data: {
-                  name: "Premium Plan Subscription",
-                  description: "Unlock unlimited projects (Signup Upgrade)",
-                },
-                unit_amount: 2000, 
-                recurring: { interval: "month" },
-              },
-              quantity: 1,
-            }],
-            mode: "subscription",
-            success_url: `${process.env.CLIENT_URL}/payment/success?session_id={CHECKOUT_SESSION_ID}`,
-            cancel_url: `${process.env.CLIENT_URL}/payment/cancel`,
-            metadata: {
-              organizationId: finalOrganizationId.toString(),
-              userId: userId.toString(),
-              targetPlan: "PREMIUM"
-            },
-            subscription_data: {
-              metadata: {
-                organizationId: finalOrganizationId.toString(),
-                userId: userId.toString(),
-                targetPlan: "PREMIUM"
-              }
-            },
-          });
-          
-          await User.findByIdAndUpdate(userId, { 
-            pendingPaymentUrl: sessionStripe.url,
-            pendingPaymentExpiry: new Date(Date.now() + 30 * 60 * 1000)
-          });
-          
-          console.log(`[SIGNUP] Stripe session created for: ${email}`);
-        } catch (stripeError) {
-          console.error(`[SIGNUP] Stripe failed for ${email}:`, stripeError.message);
-        }
-      });
-    }
 
   } catch (err) {
     if (session.inTransaction()) {
