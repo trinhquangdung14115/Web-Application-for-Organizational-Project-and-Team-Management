@@ -329,16 +329,53 @@ const ReportDetailModal = ({ isOpen, onClose, title, data, type }) => {
 const AttendanceReportModal = ({ isOpen, onClose }) => {
     const { selectedProjectId, selectedProjectName } = useProject();
     
-    const [reportData, setReportData] = useState([]);
+    // Lưu danh sách member đã được lọc (Chỉ chứa Member)
+    const [finalList, setFinalList] = useState([]);
     const [loading, setLoading] = useState(false);
     const [selectedMonth, setSelectedMonth] = useState(new Date());
-
-    // State cho Modal chi tiết
+    
     const [detailModal, setDetailModal] = useState({ isOpen: false, title: '', data: [], type: '' });
 
-    const fetchReport = useCallback(async () => {
+    // Hàm lấy dữ liệu và xử lý (Kết hợp List Member + Stats)
+    const fetchCombinedData = useCallback(async () => {
         setLoading(true);
         try {
+            // Chuẩn bị danh sách Members
+            let members = [];
+            
+            if (selectedProjectId && selectedProjectId !== 'all') {
+                // Nếu đang ở trong 1 dự án cụ thể -> Lấy danh sách thành viên dự án
+                const resMem = await fetch(`${API_BASE_URL}/projects/${selectedProjectId}/members`, { headers: getHeaders() });
+                const dataMem = await resMem.json();
+                
+                if (dataMem.success) {
+                    // Chỉ lấy những người có role là 'Member' trong dự án
+                    members = dataMem.data
+                        .filter(m => m.role === 'Member') // Loại bỏ Admin/Manager
+                        .map(m => ({
+                            id: m.user._id || m.user.id,
+                            name: m.user.name,
+                            email: m.user.email,
+                            role: m.role
+                        }));
+                }
+            } else {
+                // Nếu là 'All Projects' (Admin View) -> Lấy tất cả user hệ thống có role Member
+                const resUsers = await fetch(`${API_BASE_URL}/users`, { headers: getHeaders() });
+                const dataUsers = await resUsers.json();
+                if (dataUsers.success) {
+                    members = dataUsers.data
+                        .filter(u => u.role === 'Member') // Loại bỏ Admin/Manager hệ thống
+                        .map(u => ({
+                            id: u._id || u.id,
+                            name: u.name,
+                            email: u.email,
+                            role: 'Member'
+                        }));
+                }
+            }
+
+            // Lấy dữ liệu điểm danh (Stats)
             const year = selectedMonth.getFullYear();
             const month = selectedMonth.getMonth();
             const startDate = new Date(year, month, 1).toISOString();
@@ -349,22 +386,41 @@ const AttendanceReportModal = ({ isOpen, onClose }) => {
                 params.append('projectId', selectedProjectId);
             }
 
-            const res = await fetch(`${API_BASE_URL}/attendance/all?${params.toString()}`, { headers: getHeaders() });
-            const data = await res.json();
-            
-            if (data.success) {
-                setReportData(data.data || []);
+            const resStats = await fetch(`${API_BASE_URL}/attendance/all?${params.toString()}`, { headers: getHeaders() });
+            const dataStats = await resStats.json();
+            const statsMap = {}; // Map userId -> Stats object
+
+            if (dataStats.success) {
+                dataStats.data.forEach(stat => {
+                    statsMap[stat.userId] = stat;
+                });
             }
-        } catch (err) { 
-            console.error("Fetch Report Error:", err); 
-        } finally { 
-            setLoading(false); 
+
+            // Ghép dữ liệu (Member List + Stats)
+            const mergedList = members.map(member => {
+                const stats = statsMap[member.id] || { 
+                    totalCheckins: 0, 
+                    present: 0, 
+                    late: 0, 
+                    absent: 0,
+                    lateDetails: [],
+                    absentDetails: []
+                };
+                return { ...member, ...stats };
+            });
+
+            setFinalList(mergedList);
+
+        } catch (err) {
+            console.error("Fetch Data Error:", err);
+        } finally {
+            setLoading(false);
         }
-    }, [selectedMonth, selectedProjectId]);
+    }, [selectedProjectId, selectedMonth]);
 
     useEffect(() => {
-        if (isOpen) fetchReport();
-    }, [isOpen, fetchReport]);
+        if (isOpen) fetchCombinedData();
+    }, [isOpen, fetchCombinedData]);
 
     const changeMonth = (offset) => {
         setSelectedMonth(prev => {
@@ -376,56 +432,33 @@ const AttendanceReportModal = ({ isOpen, onClose }) => {
 
     // Hàm mở modal chi tiết
     const openDetails = (user, type) => {
-        if (type === 'LATE' && user.late > 0) {
-            setDetailModal({
-                isOpen: true,
-                title: `Late Records: ${user.name}`,
-                data: user.lateDetails, // Backend trả về mảng [{date, time}, ...]
-                type: 'LATE'
-            });
-        } else if (type === 'ABSENT' && user.absent > 0) {
-            setDetailModal({
-                isOpen: true,
-                title: `Absence Records: ${user.name}`,
-                data: user.absentDetails, // Backend trả về mảng [{date, note}, ...]
-                type: 'ABSENT'
-            });
-        }
+        const data = type === 'LATE' ? user.lateDetails : user.absentDetails;
+        if (!data || data.length === 0) return;
+        setDetailModal({
+            isOpen: true,
+            title: type === 'LATE' ? `Late: ${user.name}` : `Absent: ${user.name}`,
+            data: data,
+            type: type
+        });
     };
 
     if (!isOpen) return null;
 
     return (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black bg-opacity-50 backdrop-blur-sm" onClick={onClose}>
-            
-            {/* Modal Detail */}
-            <ReportDetailModal 
-                isOpen={detailModal.isOpen} 
-                onClose={() => setDetailModal({ ...detailModal, isOpen: false })} 
-                title={detailModal.title}
-                data={detailModal.data}
-                type={detailModal.type}
-            />
-
+            <ReportDetailModal isOpen={detailModal.isOpen} onClose={() => setDetailModal({ ...detailModal, isOpen: false })} title={detailModal.title} data={detailModal.data} type={detailModal.type} />
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-5xl p-6 animate-in fade-in zoom-in-95 flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-                
+
                 {/* HEADER */}
                 <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 border-b border-gray-100 pb-4">
                     <div>
-                        <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                            <UserGroupIcon className="w-6 h-6 text-[var(--color-brand)]"/> 
-                            Attendance Report
-                        </h3>
-                        <p className="text-sm text-gray-500 mt-1">
-                            Scope: <span className="font-semibold text-gray-800">{selectedProjectId === 'all' ? 'All Organization' : selectedProjectName}</span>
-                        </p>
+                        <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2"><UserGroupIcon className="w-6 h-6 text-[var(--color-brand)]"/> Attendance Report</h3>
+                        <p className="text-sm text-gray-500 mt-1">Scope: <span className="font-semibold text-gray-800">{selectedProjectId === 'all' ? 'All Organization' : selectedProjectName}</span></p>
                     </div>
 
                     <div className="flex items-center gap-4 bg-gray-100 p-1 rounded-lg">
                         <button onClick={() => changeMonth(-1)} className="p-1.5 hover:bg-white hover:shadow rounded-md transition-all text-gray-600"><ChevronLeftIcon className="w-5 h-5"/></button>
-                        <span className="text-sm font-bold text-gray-800 min-w-[140px] text-center select-none">
-                            {selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                        </span>
+                        <span className="text-sm font-bold text-gray-800 min-w-[140px] text-center select-none">{selectedMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
                         <button onClick={() => changeMonth(1)} className="p-1.5 hover:bg-white hover:shadow rounded-md transition-all text-gray-600"><ChevronRightIcon className="w-5 h-5"/></button>
                     </div>
 
@@ -437,7 +470,7 @@ const AttendanceReportModal = ({ isOpen, onClose }) => {
                     <table className="w-full text-sm text-left text-gray-600">
                         <thead className="bg-gray-50 text-xs text-gray-700 uppercase sticky top-0 z-10 shadow-sm">
                             <tr>
-                                <th className="px-6 py-4 font-bold border-b">Member</th>
+                                <th className="px-6 py-4 font-bold border-b">Members</th>
                                 <th className="px-6 py-4 font-bold border-b text-center w-[15%]">Total Check-ins</th>
                                 <th className="px-6 py-4 font-bold border-b text-center w-[15%]">On Time</th>
                                 <th className="px-6 py-4 font-bold border-b text-center w-[15%]">Late (Days)</th>
@@ -447,62 +480,21 @@ const AttendanceReportModal = ({ isOpen, onClose }) => {
                         <tbody className="divide-y divide-gray-100">
                             {loading ? (
                                 <tr><td colSpan="5" className="text-center py-20 text-gray-400">Loading data...</td></tr>
-                            ) : reportData.length === 0 ? (
+                            ) : finalList.length === 0 ? (
                                 <tr><td colSpan="5" className="text-center py-20 text-gray-400">No members found in this scope.</td></tr>
                             ) : (
-                                reportData.map((user) => (
-                                    <tr key={user.userId} className="hover:bg-gray-50 transition-colors">
+                                finalList.map((user) => (
+                                    <tr key={user.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="px-6 py-4">
                                             <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 border border-white shadow-sm shrink-0">
-                                                    {user.name?.charAt(0).toUpperCase()}
-                                                </div>
-                                                <div>
-                                                    <div className="font-bold text-gray-900">{user.name}</div>
-                                                    <div className="text-xs text-gray-500">{user.email}</div>
-                                                </div>
+                                                <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-xs font-bold text-gray-600 border border-white shadow-sm shrink-0">{user.name?.charAt(0).toUpperCase()}</div>
+                                                <div><div className="font-bold text-gray-900">{user.name}</div><div className="text-xs text-gray-500">{user.email}</div></div>
                                             </div>
                                         </td>
-                                        
-                                        <td className="px-6 py-4 text-center font-medium text-gray-600">
-                                            {user.totalCheckins}
-                                        </td>
-
-                                        <td className="px-6 py-4 text-center">
-                                            <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${user.present > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>
-                                                {user.present}
-                                            </span>
-                                        </td>
-
-                                        {/* NÚT BẤM XEM CHI TIẾT MUỘN */}
-                                        <td className="px-6 py-4 text-center">
-                                            <button 
-                                                onClick={() => openDetails(user, 'LATE')}
-                                                disabled={user.late === 0}
-                                                className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-                                                    user.late > 0 
-                                                    ? 'bg-orange-100 text-orange-700 hover:bg-orange-200 cursor-pointer underline decoration-dotted underline-offset-2' 
-                                                    : 'bg-gray-100 text-gray-400 cursor-default'
-                                                }`}
-                                            >
-                                                {user.late}
-                                            </button>
-                                        </td>
-
-                                        {/* NÚT BẤM XEM CHI TIẾT NGHỈ */}
-                                        <td className="px-6 py-4 text-center">
-                                            <button 
-                                                onClick={() => openDetails(user, 'ABSENT')}
-                                                disabled={user.absent === 0}
-                                                className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${
-                                                    user.absent > 0 
-                                                    ? 'bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer underline decoration-dotted underline-offset-2' 
-                                                    : 'bg-gray-100 text-gray-400 cursor-default'
-                                                }`}
-                                            >
-                                                {user.absent}
-                                            </button>
-                                        </td>
+                                        <td className="px-6 py-4 text-center font-medium text-gray-600">{user.totalCheckins}</td>
+                                        <td className="px-6 py-4 text-center"><span className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${user.present > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-400'}`}>{user.present}</span></td>
+                                        <td className="px-6 py-4 text-center"><button onClick={() => openDetails(user, 'LATE')} disabled={user.late === 0} className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${user.late > 0 ? 'bg-orange-100 text-orange-700 hover:bg-orange-200 cursor-pointer underline decoration-dotted underline-offset-2' : 'bg-gray-100 text-gray-400 cursor-default'}`}>{user.late}</button></td>
+                                        <td className="px-6 py-4 text-center"><button onClick={() => openDetails(user, 'ABSENT')} disabled={user.absent === 0} className={`px-3 py-1 rounded-full text-xs font-bold transition-all ${user.absent > 0 ? 'bg-red-100 text-red-700 hover:bg-red-200 cursor-pointer underline decoration-dotted underline-offset-2' : 'bg-gray-100 text-gray-400 cursor-default'}`}>{user.absent}</button></td>
                                     </tr>
                                 ))
                             )}
