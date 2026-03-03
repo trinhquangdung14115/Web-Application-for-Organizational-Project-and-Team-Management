@@ -24,35 +24,15 @@ const PaymentSuccess = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-// CƠ CHẾ POLLING: Thử kiểm tra lại nhiều lần (Mỗi lần cách nhau 3s)
-    const handleSyncData = async (retryCount = 0) => {
+    const handleSyncData = async () => {
         try {
-            console.log(`Syncing profile data... Attempt: ${retryCount + 1}`);
-            const data = await refreshProfile(); 
+            console.log("Syncing profile data...");
+            const data = await refreshProfile(); // Gọi hàm service
             
-            if (data && data.user && data.organization) {
-                
-                // KIỂM TRA ĐỒNG BỘ: Backend đã nhận được webhook chưa
-                // Nếu không còn là FREE nữa -> Stripe đã cập nhật xong
-                if (data.organization.plan !== 'FREE') {
-                    console.log("Profile synced successfully:", data);
-                    setUser(data.user); 
-                    
-                    // Cập nhật CẢ user VÀ organization vào bộ nhớ để NavBar đọc
-                    localStorage.setItem('user', JSON.stringify(data.user));
-                    localStorage.setItem('organization', JSON.stringify(data.organization));
-                    
-                    setStatus('success'); // Dừng lặp, hiện màn hình chúc mừng
-                } else {
-                    // Nếu Backend vẫn báo là FREE -> Webhook đang bị delay trên mạng
-                    if (retryCount < 5) { // Thử tối đa 5 lần (tương đương 15 giây chờ)
-                        console.log("Waiting for Stripe Webhook... Retrying in 3 seconds.");
-                        setTimeout(() => handleSyncData(retryCount + 1), 3000);
-                    } else {
-                        // Nếu chờ quá lâu mà Stripe vẫn chưa gọi về
-                        throw new Error("Payment verification is taking longer than expected. Your payment is safe, but the status is updating slowly. Please check the Dashboard later.");
-                    }
-                }
+            if (data && data.user) {
+                console.log("Profile synced:", data);
+                setUser(data.user); // Cập nhật Context
+                setStatus('success');
             } else {
                 throw new Error("Failed to retrieve user data");
             }
@@ -63,13 +43,16 @@ const PaymentSuccess = () => {
         }
     };
 
-    // Chạy cơ chế kiểm tra ngay khi vừa load trang
     useEffect(() => {
-        handleSyncData(0); 
+        // Chờ 1.5s để đảm bảo Webhook phía Backend đã chạy xong DB update
+        const timer = setTimeout(() => {
+            handleSyncData();
+        }, 1500);
+        return () => clearTimeout(timer);
     }, []);
 
     const handleExplore = () => {
-        window.location.href = '/home'; 
+        navigate('/home'); 
     };
 
     return (
