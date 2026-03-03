@@ -39,21 +39,14 @@ app.use(cors({
 app.post(
   "/api/payment/webhook", 
   express.raw({ type: "application/json" }),
-  (req, res, next) => {
-    console.log("\n=== [WEBHOOK RECEIVED] ===");
-    console.log("URL:", req.originalUrl);
-    console.log("Method:", req.method);
-    console.log("Headers:", req.headers);
-    console.log("Body Size:", Buffer.byteLength(req.body), "bytes");
-    console.log("===========================\n");
-    next();
-  },
   handleWebhook 
 );
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(morgan("dev"));
+
+app.get("/health", (req, res) => res.json({ status: "ok" }));
 
 app.use("/api", router);
 app.use("/api", taskRoutes);
@@ -66,48 +59,12 @@ app.use("/api", organizationRoutes);
 app.use("/api", dashboardRoutes);
 app.use("/api", messageRoutes);
 app.use("/api", attendanceRoutes);
-app.use((req, res, next) => {
-  if (req.originalUrl.includes('webhook')) {
-    console.log(`[DEBUG WEBHOOK] Incoming request to: ${req.originalUrl}`);
-    console.log(`[DEBUG WEBHOOK] Method: ${req.method}`);
-  }
-  next();
-});
-
-app.use((req, res, next) => {
-  if (req.originalUrl === '/api/v1/billing/webhook') { 
-    next();
-  } else {
-    express.json()(req, res, next);
-  }
-});
-
-function printRoutes(stack, parentPath = '') {
-  stack.forEach((middleware) => {
-    if (middleware.route) {
-      const methods = Object.keys(middleware.route.methods).join(', ').toUpperCase();
-      console.log(`Route: ${methods} ${parentPath}${middleware.route.path}`);
-    } else if (middleware.name === 'router') {
-      const routerPath = middleware.regexp.source
-        .replace('\\/?', '')
-        .replace('(?=\\/|$)', '')
-        .replace(/\\\//g, '/');
-      
-      printRoutes(middleware.handle.stack, parentPath + routerPath);
-    }
-  });
-}
-
-console.log('\n Registered Routes:');
-printRoutes(app._router.stack, '');
-console.log('');
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const swaggerDoc = YAML.load(path.join(__dirname, "..", "openapi.yaml"));
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
-app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use(errorHandler);
 
 export default app;
