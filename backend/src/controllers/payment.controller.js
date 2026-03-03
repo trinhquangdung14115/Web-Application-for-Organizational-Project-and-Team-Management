@@ -92,11 +92,17 @@ export const createCheckoutSession = async (req, res) => {
 };
 
 /**
- * [UPDATED] Webhook with Debug Logging
+ * [UPDATED] Webhook with Enhanced Debug Logging
  */
 export const handleWebhook = async (req, res) => {
   const sig = req.headers["stripe-signature"];
   let event;
+
+  console.log("\n========== [STRIPE WEBHOOK DEBUG] ==========");
+  console.log("[1] Webhook triggered at:", new Date().toISOString());
+  console.log("[2] Stripe Signature:", sig ? "✓ Found" : "✗ Missing");
+  console.log("[3] Request Body Type:", typeof req.body);
+  console.log("[4] Request Body Size:", JSON.stringify(req.body).length, "bytes");
 
   try {
     event = stripe.webhooks.constructEvent(
@@ -104,52 +110,67 @@ export const handleWebhook = async (req, res) => {
       sig, 
       process.env.STRIPE_WEBHOOK_SECRET
     );
-    console.log("[Webhook Received]", event.type);
+    console.log("[5] ✓ Event Signature Verified Successfully");
+    console.log("[6] Event Type:", event.type);
+    console.log("[7] Event ID:", event.id);
+    console.log("===========================================\n");
   } catch (err) {
-    console.error(` Webhook Signature Error: ${err.message}`);
+    console.error("\n[ERROR] Webhook Signature Verification Failed!");
+    console.error("Error Message:", err.message);
+    console.error("Webhook Secret Set:", process.env.STRIPE_WEBHOOK_SECRET ? "Yes" : "No");
+    console.error("===========================================\n");
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
   
   switch (event.type) {
     case "checkout.session.completed": {
         const session = event.data.object;
-        console.log("[Session Data]:", {
-            metadata: session.metadata,
-            subscription: session.subscription,
-            mode: session.mode
-        });
+        console.log("\n--- [CHECKOUT SESSION COMPLETED] ---");
+        console.log("Session ID:", session.id);
+        console.log("Session Metadata:", session.metadata);
+        console.log("Subscription ID:", session.subscription);
+        console.log("Customer Email:", session.customer_email);
+        console.log("Payment Status:", session.payment_status);
 
         const { organizationId, targetPlan = "PREMIUM", userId } = session.metadata || {};
+        
+        console.log("Extracted from Metadata:");
+        console.log("  - organizationId:", organizationId || "✗ MISSING");
+        console.log("  - targetPlan:", targetPlan);
+        console.log("  - userId:", userId);
 
         if (organizationId) {
             try {
-                // [FIX TRIỆT ĐỂ] Lấy subscriptionExpiredAt từ Stripe subscription
                 let subscriptionExpiredAt = null;
                 let subscriptionId = session.subscription;
                 
+                console.log("\nFetching Stripe Subscription Details...");
                 if (subscriptionId) {
                     try {
                         const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-                        console.log(" [Stripe Subscription]:", {
-                            id: subscription.id,
-                            status: subscription.status,
-                            current_period_end: subscription.current_period_end
-                        });
+                        console.log("[Subscription Retrieved]");
+                        console.log("  - ID:", subscription.id);
+                        console.log("  - Status:", subscription.status);
+                        console.log("  - Current Period End:", new Date(subscription.current_period_end * 1000));
                         
                         if (subscription.current_period_end) {
                             subscriptionExpiredAt = new Date(subscription.current_period_end * 1000);
-                            console.log(" [ExpiredAt from Stripe]:", subscriptionExpiredAt);
                         }
                     } catch (stripeErr) {
-                        console.error(" [Stripe API Error]:", stripeErr.message);
+                        console.error("[Stripe API Error]:", stripeErr.message);
                     }
                 }
                 
-                // [FALLBACK] Nếu không lấy được từ Stripe, set 30 ngày từ bây giờ
                 if (!subscriptionExpiredAt) {
                     subscriptionExpiredAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-                    console.log(" [Fallback ExpiredAt]:", subscriptionExpiredAt);
+                    console.log("[Using Fallback] Set expiry to 30 days from now");
                 }
+
+                console.log("\nUpdating Organization in Database...");
+                console.log("  - organizationId:", organizationId);
+                console.log("  - plan:", targetPlan);
+                console.log("  - subscriptionStatus: ACTIVE");
+                console.log("  - subscriptionExpiredAt:", subscriptionExpiredAt);
 
                 const updatedOrg = await Organization.findByIdAndUpdate(organizationId, { 
                     plan: targetPlan,
@@ -159,16 +180,15 @@ export const handleWebhook = async (req, res) => {
                     updatedAt: new Date()
                 }, { new: true });
 
-                console.log(` [DB Update Complete] Org ${organizationId}:`, {
+                console.log("✓ Organization Updated:", {
                     plan: updatedOrg?.plan,
                     subscriptionStatus: updatedOrg?.subscriptionStatus,
                     subscriptionExpiredAt: updatedOrg?.subscriptionExpiredAt
                 });
 
                 if (userId) {
-                    await User.findByIdAndUpdate(userId, {
-                        role: 'Admin'
-                    });
+                    await User.findByIdAndUpdate(userId, { role: 'Admin' });
+                    console.log("✓ User Role Updated to Admin");
 
                     await createNotification({
                         userId: userId,
@@ -176,13 +196,16 @@ export const handleWebhook = async (req, res) => {
                         message: `Your organization has been upgraded to ${targetPlan}.`,
                         type: "SUCCESS"
                      });
+                    console.log("✓ Notification Created");
                 }
             } catch (err) {
-                console.error("Database update failed:", err);
+                console.error("✗ Database Error:", err.message);
+                console.error("Stack:", err.stack);
             }
         } else {
-             console.error("[WARNING] Missing organizationId in metadata! Cannot update DB.");
+             console.error("✗ [CRITICAL] Missing organizationId in metadata!");
         }
+        console.log("--- [END CHECKOUT SESSION] ---\n");
         break;
     }
 
@@ -190,57 +213,52 @@ export const handleWebhook = async (req, res) => {
         const invoice = event.data.object;
         const subscriptionId = invoice.subscription;
         
-        console.log("[Invoice Payment Succeeded]:", {
-            subscriptionId,
-            invoiceId: invoice.id,
-            billing_reason: invoice.billing_reason
-        });
+        console.log("\n--- [INVOICE PAYMENT SUCCEEDED] ---");
+        console.log("Invoice ID:", invoice.id);
+        console.log("Subscription ID:", subscriptionId);
+        console.log("Amount Paid:", invoice.amount_paid / 100, invoice.currency.toUpperCase());
+        console.log("Billing Reason:", invoice.billing_reason);
 
         if (subscriptionId) {
             try {
-                // Lấy subscription để có period_end chính xác
                 const subscription = await stripe.subscriptions.retrieve(subscriptionId);
                 const expiredAt = new Date(subscription.current_period_end * 1000);
                 
-                console.log("[Subscription Period End]:", expiredAt);
+                console.log("Subscription Period End:", expiredAt);
 
-                // Tìm org bằng subscriptionId
                 let org = await Organization.findOne({ subscriptionId: subscriptionId });
                 
-                // [FALLBACK] Nếu không tìm được bằng subscriptionId, thử tìm bằng metadata từ subscription
                 if (!org && subscription.metadata?.organizationId) {
                     org = await Organization.findById(subscription.metadata.organizationId);
-                    console.log("[Found org via metadata]:", org?._id);
+                    console.log("✓ Found org via subscription metadata");
                 }
 
                 if (org) {
                     await Organization.findByIdAndUpdate(org._id, { 
                         subscriptionStatus: "ACTIVE",
                         subscriptionExpiredAt: expiredAt,
-                        subscriptionId: subscriptionId // Đảm bảo subscriptionId được lưu
+                        subscriptionId: subscriptionId
                     });
-                    
-                    console.log(`[Invoice Update] Org ${org._id} expiredAt set to ${expiredAt}`);
-                    
-                    await createNotification({
-                        userId: org.ownerId,
-                        title: "Payment Successful",
-                        message: `Premium plan active until ${expiredAt.toLocaleDateString()}.`,
-                        type: "INFO"
-                    });
+                    console.log(" Organization Renewal Updated:", org._id);
                 } else {
-                    console.log("[Invoice] No org found for subscriptionId:", subscriptionId);
+                    console.error("No organization found for subscriptionId:", subscriptionId);
                 }
             } catch (err) {
-                console.error("Invoice update failed:", err);
+                console.error("Invoice Update Error:", err.message);
             }
         }
+        console.log("--- [END INVOICE PAYMENT] ---\n");
         break;
     }
 
     case "invoice.payment_failed": {
         const invoice = event.data.object;
         const subscriptionId = invoice.subscription;
+
+        console.log("\n--- [INVOICE PAYMENT FAILED] ---");
+        console.log("Invoice ID:", invoice.id);
+        console.log("Subscription ID:", subscriptionId);
+        console.log("Failure Reason:", invoice.last_finalization_error?.message);
 
         if (subscriptionId) {
             try {
@@ -251,7 +269,7 @@ export const handleWebhook = async (req, res) => {
                 );
 
                 if (org) {
-                    console.log(`[Payment Failed] Org ${org._id} marked as PAST_DUE`);
+                    console.log("✓ Organization Marked as PAST_DUE");
                     await createNotification({
                         userId: org.ownerId,
                         title: "Payment Failed",
@@ -260,15 +278,20 @@ export const handleWebhook = async (req, res) => {
                     });
                 }
             } catch (err) {
-                console.error("Payment failed update error:", err);
+                console.error("✗ Error updating organization:", err.message);
             }
         }
+        console.log("--- [END PAYMENT FAILED] ---\n");
         break;
     }
 
     case "customer.subscription.deleted": {
         const subscription = event.data.object;
         const subscriptionId = subscription.id;
+
+        console.log("\n--- [SUBSCRIPTION DELETED] ---");
+        console.log("Subscription ID:", subscriptionId);
+        console.log("Cancellation Reason:", subscription.cancellation_details?.reason);
 
         if (subscriptionId) {
             try {
@@ -284,7 +307,7 @@ export const handleWebhook = async (req, res) => {
                 );
 
                 if (org) {
-                    console.log(`[Expired] Org ${org._id} downgraded to FREE`);
+                    console.log("✓ Organization Downgraded to FREE");
                     await createNotification({
                         userId: org.ownerId,
                         title: "Premium Expired",
@@ -293,11 +316,15 @@ export const handleWebhook = async (req, res) => {
                     });
                 }
             } catch (err) {
-                console.error("Subscription deleted error:", err);
+                console.error("✗ Subscription deletion error:", err.message);
             }
         }
+        console.log("--- [END SUBSCRIPTION DELETED] ---\n");
         break;
     }
+
+    default:
+      console.log("\n[INFO] Unhandled event type:", event.type);
   }
 
   res.status(200).json({ received: true });

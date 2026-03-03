@@ -39,6 +39,15 @@ app.use(cors({
 app.post(
   "/api/payment/webhook", 
   express.raw({ type: "application/json" }),
+  (req, res, next) => {
+    console.log("\n=== [WEBHOOK RECEIVED] ===");
+    console.log("URL:", req.originalUrl);
+    console.log("Method:", req.method);
+    console.log("Headers:", req.headers);
+    console.log("Body Size:", Buffer.byteLength(req.body), "bytes");
+    console.log("===========================\n");
+    next();
+  },
   handleWebhook 
 );
 
@@ -57,7 +66,21 @@ app.use("/api", organizationRoutes);
 app.use("/api", dashboardRoutes);
 app.use("/api", messageRoutes);
 app.use("/api", attendanceRoutes);
+app.use((req, res, next) => {
+  if (req.originalUrl.includes('webhook')) {
+    console.log(`[DEBUG WEBHOOK] Incoming request to: ${req.originalUrl}`);
+    console.log(`[DEBUG WEBHOOK] Method: ${req.method}`);
+  }
+  next();
+});
 
+app.use((req, res, next) => {
+  if (req.originalUrl === '/api/v1/billing/webhook') { 
+    next();
+  } else {
+    express.json()(req, res, next);
+  }
+});
 
 function printRoutes(stack, parentPath = '') {
   stack.forEach((middleware) => {
@@ -84,6 +107,7 @@ const __dirname = path.dirname(__filename);
 const swaggerDoc = YAML.load(path.join(__dirname, "..", "openapi.yaml"));
 app.use("/docs", swaggerUi.serve, swaggerUi.setup(swaggerDoc));
 
+app.get("/health", (req, res) => res.json({ status: "ok" }));
 app.use(errorHandler);
 
 export default app;
