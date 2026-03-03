@@ -32,6 +32,13 @@ const PaymentSuccess = () => {
             if (data && data.user) {
                 console.log("Profile synced:", data);
                 setUser(data.user); // Cập nhật Context
+                
+                // 👇 THÊM ĐOẠN NÀY: Lưu gói cước mới vào LocalStorage để NavBar đọc được
+                if (data.organization) {
+                    localStorage.setItem('organization', JSON.stringify(data.organization));
+                }
+                // 👆 KẾT THÚC THÊM
+
                 setStatus('success');
             } else {
                 throw new Error("Failed to retrieve user data");
@@ -52,7 +59,7 @@ const PaymentSuccess = () => {
     }, []);
 
     const handleExplore = () => {
-        navigate('/home'); 
+        window.location.href = '/home'; 
     };
 
     return (
