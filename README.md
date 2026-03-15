@@ -264,7 +264,7 @@ Course: GP2526 — Web Application Development
 
 | Name | Student ID |
 |---|---|
-| Nguyễn Minh Đức | 23BI14102 |
+| Nguyễn Minh Đức | 23BI14102 | Leader |
 | Nguyễn Hoàng Dũng | 23BI14111 |
 | Huỳnh Anh Dũng | 23BI14114 |
 | Trịnh Quang Dũng | 23BI14115 |
